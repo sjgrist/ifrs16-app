@@ -1,65 +1,58 @@
 import { Router, Request, Response } from "express";
-import { getDb } from "../db";
+import { getSupabase } from "../db";
 
 const router = Router();
 
-router.get("/", (_req: Request, res: Response) => {
-  try {
-    const rows = getDb().prepare("SELECT key, value FROM settings").all({}) as { key: string; value: string }[];
-    res.json(Object.fromEntries(rows.map((r) => [r.key, r.value])));
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.get("/", async (_req: Request, res: Response) => {
+  const { data, error } = await getSupabase().from("settings").select("key, value");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(Object.fromEntries((data || []).map((r) => [r.key, r.value])));
 });
 
-router.put("/", (req: Request, res: Response) => {
-  try {
-    const db = getDb();
-    const updates = req.body as Record<string, string>;
-    const upsert = db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ($k,$v)");
-    db.exec("BEGIN");
-    try {
-      for (const [k, v] of Object.entries(updates)) upsert.run({ $k: k, $v: String(v) });
-      db.exec("COMMIT");
-    } catch (e) { db.exec("ROLLBACK"); throw e; }
-    res.json({ ok: true });
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.put("/", async (req: Request, res: Response) => {
+  const updates = req.body as Record<string, string>;
+  const sb = getSupabase();
+  for (const [k, v] of Object.entries(updates)) {
+    const { error } = await sb.from("settings").upsert({ key: k, value: String(v) }, { onConflict: "key" });
+    if (error) return res.status(500).json({ error: error.message });
+  }
+  res.json({ ok: true });
 });
 
-router.get("/accounts", (req: Request, res: Response) => {
-  try {
-    const db = getDb();
-    const { entity_id } = req.query;
-    const accounts = entity_id
-      ? db.prepare("SELECT * FROM account_codes WHERE entity_id=$eid OR entity_id IS NULL ORDER BY asset_class")
-          .all({ $eid: entity_id })
-      : db.prepare("SELECT * FROM account_codes ORDER BY entity_id, asset_class").all({});
-    res.json(accounts);
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.get("/accounts", async (req: Request, res: Response) => {
+  const { entity_id } = req.query;
+  const sb = getSupabase();
+  const query = sb.from("account_codes").select("*");
+  const { data, error } = entity_id
+    ? await query.or(`entity_id.eq.${entity_id},entity_id.is.null`).order("asset_class")
+    : await query.order("entity_id").order("asset_class");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
-router.put("/accounts", (req: Request, res: Response) => {
-  try {
-    const db = getDb();
-    const d = req.body;
-    db.prepare(`
-      INSERT INTO account_codes
-        (entity_id,asset_class,rou_asset,accumulated_depreciation,
-         lease_liability_current,lease_liability_non_current,
-         interest_expense,depreciation_expense,cash_accruals)
-      VALUES ($eid,$ac,$ra,$ad,$llc,$llnc,$ie,$de,$ca)
-      ON CONFLICT(entity_id,asset_class) DO UPDATE SET
-        rou_asset=excluded.rou_asset,accumulated_depreciation=excluded.accumulated_depreciation,
-        lease_liability_current=excluded.lease_liability_current,
-        lease_liability_non_current=excluded.lease_liability_non_current,
-        interest_expense=excluded.interest_expense,depreciation_expense=excluded.depreciation_expense,
-        cash_accruals=excluded.cash_accruals
-    `).run({
-      $eid: d.entity_id || null,$ac: d.asset_class||"all",$ra: d.rou_asset,
-      $ad: d.accumulated_depreciation,$llc: d.lease_liability_current,
-      $llnc: d.lease_liability_non_current,$ie: d.interest_expense,
-      $de: d.depreciation_expense,$ca: d.cash_accruals
-    });
-    res.json({ ok: true });
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.put("/accounts", async (req: Request, res: Response) => {
+  const d = req.body;
+  const sb = getSupabase();
+  const entityId = d.entity_id || null;
+  const assetClass = d.asset_class || "all";
+
+  // Delete existing row then insert (handles NULL entity_id uniqueness)
+  const delQuery = sb.from("account_codes").delete().eq("asset_class", assetClass);
+  await (entityId ? delQuery.eq("entity_id", entityId) : delQuery.is("entity_id", null));
+
+  const { error } = await sb.from("account_codes").insert({
+    entity_id: entityId,
+    asset_class: assetClass,
+    rou_asset: d.rou_asset,
+    accumulated_depreciation: d.accumulated_depreciation,
+    lease_liability_current: d.lease_liability_current,
+    lease_liability_non_current: d.lease_liability_non_current,
+    interest_expense: d.interest_expense,
+    depreciation_expense: d.depreciation_expense,
+    cash_accruals: d.cash_accruals,
+  });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
 export default router;

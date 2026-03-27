@@ -1,38 +1,35 @@
 import { Router, Request, Response } from "express";
-import { getDb } from "../db";
+import { getSupabase } from "../db";
 
 const router = Router();
 
-router.get("/", (_req: Request, res: Response) => {
-  try {
-    const entities = getDb().prepare("SELECT * FROM entities ORDER BY name").all({});
-    res.json(entities);
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.get("/", async (_req: Request, res: Response) => {
+  const { data, error } = await getSupabase().from("entities").select("*").order("name");
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
-router.post("/", (req: Request, res: Response) => {
-  try {
-    const { name, currency, country } = req.body;
-    const r = getDb().prepare("INSERT INTO entities (name, currency, country) VALUES ($n,$c,$co)")
-      .run({ $n: name, $c: currency || "GBP", $co: country || "" });
-    res.status(201).json({ id: Number(r.lastInsertRowid) });
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.post("/", async (req: Request, res: Response) => {
+  const { name, currency, country } = req.body;
+  const { data, error } = await getSupabase()
+    .from("entities").insert({ name, currency: currency || "GBP", country: country || "" })
+    .select().single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.status(201).json({ id: data.id });
 });
 
-router.put("/:id", (req: Request, res: Response) => {
-  try {
-    const { name, currency, country } = req.body;
-    getDb().prepare("UPDATE entities SET name=$n,currency=$c,country=$co WHERE id=$id")
-      .run({ $n: name, $c: currency, $co: country, $id: parseInt(req.params.id) });
-    res.json({ ok: true });
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.put("/:id", async (req: Request, res: Response) => {
+  const { name, currency, country } = req.body;
+  const { error } = await getSupabase()
+    .from("entities").update({ name, currency, country }).eq("id", parseInt(req.params.id));
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
-router.delete("/:id", (req: Request, res: Response) => {
-  try {
-    getDb().prepare("DELETE FROM entities WHERE id = $id").run({ $id: parseInt(req.params.id) });
-    res.json({ ok: true });
-  } catch (err: unknown) { res.status(500).json({ error: (err as Error).message }); }
+router.delete("/:id", async (req: Request, res: Response) => {
+  const { error } = await getSupabase().from("entities").delete().eq("id", parseInt(req.params.id));
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ ok: true });
 });
 
 export default router;
