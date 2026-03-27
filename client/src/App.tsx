@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Sidebar } from "./components/layout/Sidebar";
 import { ToastProvider } from "./components/ui/Toast";
+import { HomePage } from "./pages/Home";
 import { LeasesPage } from "./pages/Leases";
 import { SchedulesPage } from "./pages/Schedules";
 import { JournalsPage } from "./pages/Journals";
@@ -23,7 +24,7 @@ export default function App() {
           <Sidebar />
           <main className="flex-1 overflow-auto p-6">
             <Routes>
-              <Route path="/" element={<Navigate to="/leases" replace />} />
+              <Route path="/" element={<HomePage />} />
               <Route path="/leases" element={<LeasesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/journals" element={<JournalsPage />} />

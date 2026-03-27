@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { FileText, BarChart2, BookOpen, Percent, Settings, Moon, Sun } from "lucide-react";
+import { Home, FileText, BarChart2, BookOpen, Percent, Settings, Moon, Sun } from "lucide-react";
 import { useAppStore } from "../../lib/store";
 import { cn } from "../../lib/utils";
 
 const NAV = [
+  { to: "/",          icon: Home,      label: "Home",          end: true },
   { to: "/leases",    icon: FileText,  label: "Leases" },
   { to: "/schedules", icon: BarChart2, label: "Schedules" },
   { to: "/journals",  icon: BookOpen,  label: "Journals" },
@@ -31,8 +32,8 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 px-2 space-y-0.5">
-        {NAV.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} className={({ isActive }) =>
+        {NAV.map(({ to, icon: Icon, label, end }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) =>
             cn("flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                isActive
                  ? "bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400"
