@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Plus, Trash2, Edit2, ChevronDown, ChevronRight, Info, ExternalLink } from "lucide-react";
 import { api, type DiscountRate } from "../lib/api";
 import { fmtPct, fmt } from "../lib/utils";
 import { Modal } from "../components/ui/Modal";
@@ -7,28 +7,84 @@ import { useToast } from "../components/ui/Toast";
 import { useAppStore } from "../lib/store";
 
 const CURRENCIES = ["GBP", "EUR", "USD", "SEK", "NOK", "DKK", "CHF"];
-const METHODOLOGY: Record<number, { title: string; body: string; guidance?: string }> = {
+
+interface StepLink { label: string; url: string; }
+interface Step { title: string; body: string; guidance?: string; links?: StepLink[]; }
+
+const METHODOLOGY: Record<number, Step> = {
   1: {
     title: "Step 1 — Reference Rate",
-    body: "The reference rate is the risk-free rate for the relevant currency and tenor. Common references:\n• GBP: SONIA (Sterling Overnight Index Average)\n• EUR: EURIBOR / €STER\n• SEK: STIBOR\n• NOK: NIBOR\n• USD: SOFR\n\nChoose the tenor closest to your lease term. For terms between published tenors, interpolate linearly.",
+    body: "The reference rate is the risk-free rate for the relevant currency and tenor. Common references:\n• GBP: SONIA (Sterling Overnight Index Average)\n• EUR: EURIBOR / €STR\n• SEK: STIBOR\n• NOK: NIBOR\n• USD: SOFR\n\nChoose the tenor closest to your lease term. For terms between published tenors, interpolate linearly.",
     guidance: "IFRS 16 requires the rate to reflect the currency of the lease, the payment schedule, and the term.",
+    links: [
+      { label: "SONIA — Bank of England", url: "https://www.bankofengland.co.uk/markets/sonia-benchmark" },
+      { label: "€STR — European Central Bank", url: "https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html" },
+      { label: "EURIBOR rates — EMMI", url: "https://www.emmi-benchmarks.eu/euribor-org/euribor-rates.html" },
+      { label: "SOFR — NY Federal Reserve", url: "https://www.newyorkfed.org/markets/reference-rates/sofr" },
+      { label: "STIBOR — Riksbank", url: "https://www.riksbank.se/en-gb/statistics/stibor/" },
+      { label: "NIBOR — Norges Bank", url: "https://www.norges-bank.no/en/statistics/nibor/" },
+    ],
   },
   2: {
     title: "Step 2 — Credit Spread",
     body: "The credit spread reflects the lessee's credit risk above the risk-free rate. Sources:\n• Existing bank facilities: margin over SONIA/EURIBOR\n• Credit rating implied spreads (e.g. ICE BofA indices)\n• Comparable company bond yields\n\nIf no rated debt exists, use the margin on the most recent bank facility as a proxy.",
     guidance: "This produces the unsecured borrowing rate = base rate + credit spread.",
+    links: [
+      { label: "ICE BofA Spreads — St. Louis Fed (FRED)", url: "https://fred.stlouisfed.org/categories/32413" },
+      { label: "ECB Statistical Data Warehouse", url: "https://sdw.ecb.europa.eu/" },
+      { label: "BIS Statistics Explorer", url: "https://stats.bis.org/" },
+    ],
   },
   3: {
     title: "Step 3 — Security Adjustment",
     body: "Leases are typically secured on the underlying asset (the lessor has a right to repossess). This reduces the credit risk to the lender versus unsecured borrowing.\n\nTypically a downward adjustment of 0–100 bps depending on asset quality and marketability.\n• Property: often 25–75 bps reduction\n• Vehicles/Equipment: 0–50 bps reduction",
     guidance: "IFRS 16.BC160 confirms the IBR should reflect a secured rate where the lease is secured on the underlying asset.",
+    links: [
+      { label: "IFRS 16 Basis for Conclusions — IFRS Foundation", url: "https://www.ifrs.org/issued-standards/list-of-standards/ifrs-16-leases/" },
+    ],
   },
   4: {
     title: "Step 4 — Currency Adjustment",
     body: "If the lease payments are in a different currency from the lessee's functional currency:\n• Use a rate denominated in the payment currency (e.g. USD SOFR if payments are in USD)\n• Do NOT add a foreign exchange risk premium — the IBR is the borrowing rate in the lease currency\n\nIf local-currency rates are unavailable, adjust the functional-currency rate using interest rate parity principles.",
     guidance: "The IBR should be the rate the lessee would pay to borrow in the same currency as the lease payments.",
+    links: [
+      { label: "IFRS 16.26 — IBR definition", url: "https://www.ifrs.org/issued-standards/list-of-standards/ifrs-16-leases/" },
+    ],
   },
 };
+
+const FURTHER_READING = [
+  {
+    category: "The Standard",
+    items: [
+      { label: "IFRS 16 Leases — IFRS Foundation", url: "https://www.ifrs.org/issued-standards/list-of-standards/ifrs-16-leases/", desc: "Full text, basis for conclusions and supporting guidance" },
+      { label: "IFRS 16 at a Glance — Deloitte IAS Plus", url: "https://www.iasplus.com/en/standards/ifrs/ifrs16", desc: "Plain-English overview, effective dates and amendments" },
+    ],
+  },
+  {
+    category: "IBR Guidance",
+    items: [
+      { label: "IFRS 16 — Determining the IBR (IASB)", url: "https://www.ifrs.org/content/dam/ifrs/supporting-implementation/ifrs-16/ifrs-16-determining-discount-rate.pdf", desc: "IASB staff paper on determining the discount rate" },
+      { label: "IFRS 16 Implementation Q&A — BDO", url: "https://www.bdo.global/en-gb/microsites/ifrs/resource-library/ifrs-16-leases", desc: "Practical worked examples including IBR determination" },
+    ],
+  },
+  {
+    category: "Benchmark Rates",
+    items: [
+      { label: "SONIA (GBP) — Bank of England", url: "https://www.bankofengland.co.uk/markets/sonia-benchmark", desc: "Current rates and historical data" },
+      { label: "€STR (EUR) — ECB", url: "https://www.ecb.europa.eu/stats/financial_markets_and_interest_rates/euro_short-term_rate/html/index.en.html", desc: "Euro short-term rate daily fixings" },
+      { label: "SOFR (USD) — NY Federal Reserve", url: "https://www.newyorkfed.org/markets/reference-rates/sofr", desc: "Secured Overnight Financing Rate data" },
+      { label: "EURIBOR (EUR) — EMMI", url: "https://www.emmi-benchmarks.eu/euribor-org/euribor-rates.html", desc: "Term rates 1 week to 12 months" },
+    ],
+  },
+  {
+    category: "Credit Spread Data",
+    items: [
+      { label: "ICE BofA Corporate Indices — FRED", url: "https://fred.stlouisfed.org/categories/32413", desc: "Option-adjusted spreads by rating and currency" },
+      { label: "BIS Statistics Explorer", url: "https://stats.bis.org/", desc: "Global financial statistics including bond market data" },
+    ],
+  },
+];
 
 export function DiscountRatePage() {
   const { toast } = useToast();
@@ -108,6 +164,20 @@ export function DiscountRatePage() {
                         <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--border)]">
                           <Info size={14} className="text-brand-500 shrink-0 mt-0.5" />
                           <p className="text-xs text-[var(--text-muted)] italic">{meta.guidance}</p>
+                        </div>
+                      )}
+                      {meta.links && meta.links.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                          <p className="text-xs font-medium text-[var(--text-muted)] mb-2">Reference sources</p>
+                          <div className="flex flex-wrap gap-2">
+                            {meta.links.map((lk) => (
+                              <a key={lk.url} href={lk.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-brand-200 dark:border-brand-700 text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-900/30 transition-colors">
+                                {lk.label}
+                                <ExternalLink size={10} />
+                              </a>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -212,6 +282,33 @@ export function DiscountRatePage() {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Further Reading */}
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--border)]">
+          <h2 className="font-semibold text-sm">Further Reading & External Resources</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">Authoritative sources for IBR determination and IFRS 16 compliance</p>
+        </div>
+        <div className="grid grid-cols-2 gap-0 divide-x divide-y divide-[var(--border)]">
+          {FURTHER_READING.map((group) => (
+            <div key={group.category} className="p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-3">{group.category}</h3>
+              <div className="space-y-3">
+                {group.items.map((item) => (
+                  <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-start gap-2 group">
+                    <ExternalLink size={13} className="text-brand-500 shrink-0 mt-0.5 group-hover:text-brand-600" />
+                    <div>
+                      <p className="text-sm font-medium text-brand-600 dark:text-brand-400 group-hover:underline leading-tight">{item.label}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{item.desc}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
