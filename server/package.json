@@ -7,7 +7,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.36.3",
+    "@anthropic-ai/sdk": "^0.55.0",
     "@ifrs16/lib": "*",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
