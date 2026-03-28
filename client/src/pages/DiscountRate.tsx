@@ -100,9 +100,41 @@ export function DiscountRatePage() {
     effective_date: new Date().toISOString().slice(0, 10), notes: "",
   });
 
+  // Raw string overrides for numeric inputs — allows clearing/backspacing
+  const [rawWb, setRawWb] = useState<Record<string, string>>({});
+
   useEffect(() => { loadRates(); }, []);
 
   const ibr = wb.base_rate + wb.credit_spread - wb.security_adj;
+
+  // Rate fields: stored as decimal (0.055), entered/displayed as % (5.5)
+  type RateField = "base_rate" | "credit_spread" | "security_adj";
+  const rateVal = (f: RateField) =>
+    f in rawWb ? rawWb[f] : String(+(wb[f] * 100).toFixed(6)).replace(/\.?0+$/, "") || "0";
+  const onRateChange = (f: RateField, raw: string) => {
+    setRawWb((r) => ({ ...r, [f]: raw }));
+    const pct = parseFloat(raw);
+    if (!isNaN(pct)) setWb((w) => ({ ...w, [f]: pct / 100 }));
+  };
+  const onRateBlur = (f: RateField, raw: string) => {
+    const pct = parseFloat(raw);
+    setWb((w) => ({ ...w, [f]: isNaN(pct) ? 0 : pct / 100 }));
+    setRawWb((r) => { const n = { ...r }; delete n[f]; return n; });
+  };
+
+  // Integer fields: just allow clearing
+  const intVal = (f: "tenor_months") =>
+    f in rawWb ? rawWb[f] : String(wb[f]);
+  const onIntChange = (f: "tenor_months", raw: string) => {
+    setRawWb((r) => ({ ...r, [f]: raw }));
+    const n = parseInt(raw);
+    if (!isNaN(n)) setWb((w) => ({ ...w, [f]: n }));
+  };
+  const onIntBlur = (f: "tenor_months", raw: string) => {
+    const n = parseInt(raw);
+    setWb((w) => ({ ...w, [f]: isNaN(n) ? 0 : n }));
+    setRawWb((r) => { const next = { ...r }; delete next[f]; return next; });
+  };
 
   const handleSave = async () => {
     try {
@@ -124,8 +156,6 @@ export function DiscountRatePage() {
     try { await api.rates.delete(id); loadRates(); } catch (e: unknown) { toast((e as Error).message, "error"); }
   };
 
-  const setNum = (field: keyof typeof wb, v: string) =>
-    setWb((w) => ({ ...w, [field]: parseFloat(v) || 0 }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -194,17 +224,20 @@ export function DiscountRatePage() {
                         </div>
                         <div>
                           <label className="label">Tenor (months)</label>
-                          <input type="number" className="input" value={wb.tenor_months}
-                            onChange={(e) => setNum("tenor_months", e.target.value)} />
+                          <input type="number" className="input" min={1}
+                            value={intVal("tenor_months")}
+                            onChange={(e) => onIntChange("tenor_months", e.target.value)}
+                            onBlur={(e) => onIntBlur("tenor_months", e.target.value)} />
                         </div>
                         <div>
-                          <label className="label">Base Risk-Free Rate</label>
+                          <label className="label">Base Risk-Free Rate %</label>
                           <div className="relative">
-                            <input type="number" className="input pr-8" step="0.0001" min={-0.1} max={0.5}
-                              value={wb.base_rate} onChange={(e) => setNum("base_rate", e.target.value)} />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">
-                              {fmtPct(wb.base_rate)}
-                            </span>
+                            <input type="number" className="input pr-7" step="0.001" min={-10} max={50}
+                              placeholder="e.g. 4.75"
+                              value={rateVal("base_rate")}
+                              onChange={(e) => onRateChange("base_rate", e.target.value)}
+                              onBlur={(e) => onRateBlur("base_rate", e.target.value)} />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">%</span>
                           </div>
                         </div>
                       </div>
@@ -212,13 +245,14 @@ export function DiscountRatePage() {
                     {step === 2 && (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="label">Credit Spread</label>
+                          <label className="label">Credit Spread %</label>
                           <div className="relative">
-                            <input type="number" className="input pr-8" step="0.0001" min={0} max={0.2}
-                              value={wb.credit_spread} onChange={(e) => setNum("credit_spread", e.target.value)} />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">
-                              {fmtPct(wb.credit_spread)}
-                            </span>
+                            <input type="number" className="input pr-7" step="0.001" min={0} max={20}
+                              placeholder="e.g. 1.5"
+                              value={rateVal("credit_spread")}
+                              onChange={(e) => onRateChange("credit_spread", e.target.value)}
+                              onBlur={(e) => onRateBlur("credit_spread", e.target.value)} />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">%</span>
                           </div>
                         </div>
                         <div className="flex items-end pb-1">
@@ -232,13 +266,14 @@ export function DiscountRatePage() {
                     {step === 3 && (
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="label">Security Adjustment (reduction)</label>
+                          <label className="label">Security Adjustment % (reduction)</label>
                           <div className="relative">
-                            <input type="number" className="input pr-8" step="0.0001" min={0} max={0.02}
-                              value={wb.security_adj} onChange={(e) => setNum("security_adj", e.target.value)} />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">
-                              {fmtPct(wb.security_adj)}
-                            </span>
+                            <input type="number" className="input pr-7" step="0.001" min={0} max={2}
+                              placeholder="e.g. 0.5"
+                              value={rateVal("security_adj")}
+                              onChange={(e) => onRateChange("security_adj", e.target.value)}
+                              onBlur={(e) => onRateBlur("security_adj", e.target.value)} />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--text-muted)]">%</span>
                           </div>
                         </div>
                       </div>
@@ -351,6 +386,7 @@ export function DiscountRatePage() {
                         setWb({ label: r.label, currency: r.currency, tenor_months: r.tenor_months,
                           base_rate: r.base_rate, credit_spread: r.credit_spread, security_adj: r.security_adj,
                           effective_date: r.effective_date, notes: r.notes });
+                        setRawWb({});
                         setEditing(r);
                       }} className="btn-ghost p-1.5"><Edit2 size={13} /></button>
                       <button onClick={() => handleDelete(r.id)} className="btn-ghost p-1.5 text-red-500"><Trash2 size={13} /></button>
