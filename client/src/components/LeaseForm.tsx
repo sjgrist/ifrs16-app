@@ -113,9 +113,28 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
     if (rate) {
       set("discount_rate_id", rate.id);
       set("discount_rate", rate.ibr);
+      // Clear any raw override so display refreshes to the library rate as %
+      setRawNums((r) => { const next = { ...r }; delete next["discount_rate"]; return next; });
     } else {
       set("discount_rate_id", null);
     }
+  };
+
+  // Discount rate is stored as decimal (0.055) but user enters/sees percentage (5.5)
+  const discountRatePctVal = "discount_rate" in rawNums
+    ? (rawNums["discount_rate"] as string)
+    : String(+(form.discount_rate * 100).toFixed(6)).replace(/\.?0+$/, "");
+
+  const onDiscountRateChange = (raw: string) => {
+    setRawNums((r) => ({ ...r, discount_rate: raw }));
+    const pct = parseFloat(raw);
+    if (!isNaN(pct)) setForm((f) => ({ ...f, discount_rate: pct / 100 }));
+  };
+
+  const onDiscountRateBlur = (raw: string) => {
+    const pct = parseFloat(raw);
+    setForm((f) => ({ ...f, discount_rate: isNaN(pct) ? 0 : pct / 100 }));
+    setRawNums((r) => { const next = { ...r }; delete next["discount_rate"]; return next; });
   };
 
   return (
@@ -259,15 +278,14 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
             ))}
           </select>
         </Field>
-        <Field label="Annual Discount Rate (IBR) *">
+        <Field label="Annual Discount Rate % *">
           <div className="relative">
-            <input type="number" className="input pr-8" required min={0} max={1} step="0.0001"
-              value={numVal("discount_rate")}
-              onChange={(e) => onNumChange("discount_rate", e.target.value)}
-              onBlur={(e) => onNumBlur("discount_rate", e.target.value)} />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
-              {fmtPct(form.discount_rate)}
-            </span>
+            <input type="number" className="input pr-7" required min={0} max={100} step="0.001"
+              placeholder="e.g. 5.5"
+              value={discountRatePctVal}
+              onChange={(e) => onDiscountRateChange(e.target.value)}
+              onBlur={(e) => onDiscountRateBlur(e.target.value)} />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">%</span>
           </div>
         </Field>
       </div>
