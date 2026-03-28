@@ -64,6 +64,8 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
     const base = initial ? { ...initial } : defaults();
     return extracted ? merge(base as FormData, extracted) : (base as FormData);
   });
+  // Tracks raw string while user is editing a number field, so they can clear/backspace freely
+  const [rawNums, setRawNums] = useState<Partial<Record<keyof FormData, string>>>({});
 
   useEffect(() => {
     if (extracted) setForm((f) => merge(f, extracted));
@@ -72,7 +74,23 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
   const set = (field: keyof FormData, value: unknown) =>
     setForm((f) => ({ ...f, [field]: value }));
 
-  const num = (v: string) => parseFloat(v) || 0;
+  // While typing: keep raw string visible; update form only when a valid number is entered
+  const onNumChange = (field: keyof FormData, raw: string) => {
+    setRawNums((r) => ({ ...r, [field]: raw }));
+    const n = parseFloat(raw);
+    if (!isNaN(n)) setForm((f) => ({ ...f, [field]: n }));
+  };
+
+  // On blur: commit the value (default 0 if empty/invalid) and clear raw override
+  const onNumBlur = (field: keyof FormData, raw: string) => {
+    const n = parseFloat(raw);
+    setForm((f) => ({ ...f, [field]: isNaN(n) ? 0 : n }));
+    setRawNums((r) => { const next = { ...r }; delete next[field]; return next; });
+  };
+
+  // Returns value for a number input: raw string while editing, number string otherwise
+  const numVal = (field: keyof FormData) =>
+    field in rawNums ? (rawNums[field] as string) : String(form[field as keyof FormData]);
 
   // Live PV preview
   const pvPreview = form.payment_amount && form.term_months && form.discount_rate
@@ -150,12 +168,16 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
             onChange={(e) => set("commencement_date", e.target.value)} />
         </Field>
         <Field label="Lease Term (months) *">
-          <input type="number" className="input" required min={1} value={form.term_months}
-            onChange={(e) => set("term_months", num(e.target.value))} />
+          <input type="number" className="input" required min={1}
+            value={numVal("term_months")}
+            onChange={(e) => onNumChange("term_months", e.target.value)}
+            onBlur={(e) => onNumBlur("term_months", e.target.value)} />
         </Field>
         <Field label="Extension Option (months)">
-          <input type="number" className="input" min={0} value={form.extension_option_months}
-            onChange={(e) => set("extension_option_months", num(e.target.value))} />
+          <input type="number" className="input" min={0}
+            value={numVal("extension_option_months")}
+            onChange={(e) => onNumChange("extension_option_months", e.target.value)}
+            onBlur={(e) => onNumBlur("extension_option_months", e.target.value)} />
         </Field>
       </div>
 
@@ -169,8 +191,10 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
           </select>
         </Field>
         <Field label="Payment Amount *">
-          <input type="number" className="input" required min={0} step="0.01" value={form.payment_amount}
-            onChange={(e) => set("payment_amount", num(e.target.value))} />
+          <input type="number" className="input" required min={0} step="0.01"
+            value={numVal("payment_amount")}
+            onChange={(e) => onNumChange("payment_amount", e.target.value)}
+            onBlur={(e) => onNumBlur("payment_amount", e.target.value)} />
         </Field>
         <Field label="Payment Frequency">
           <select className="input" value={form.payment_frequency}
@@ -188,28 +212,38 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
           </select>
         </Field>
         <Field label="Rent-Free Period (months)">
-          <input type="number" className="input" min={0} value={form.rent_free_months}
-            onChange={(e) => set("rent_free_months", num(e.target.value))} />
+          <input type="number" className="input" min={0}
+            value={numVal("rent_free_months")}
+            onChange={(e) => onNumChange("rent_free_months", e.target.value)}
+            onBlur={(e) => onNumBlur("rent_free_months", e.target.value)} />
         </Field>
       </div>
 
       {/* Section: Initial measurement adjustments */}
       <div className="grid grid-cols-2 gap-4">
         <Field label="Initial Direct Costs">
-          <input type="number" className="input" min={0} step="0.01" value={form.initial_direct_costs}
-            onChange={(e) => set("initial_direct_costs", num(e.target.value))} />
+          <input type="number" className="input" min={0} step="0.01"
+            value={numVal("initial_direct_costs")}
+            onChange={(e) => onNumChange("initial_direct_costs", e.target.value)}
+            onBlur={(e) => onNumBlur("initial_direct_costs", e.target.value)} />
         </Field>
         <Field label="Lease Incentives Receivable">
-          <input type="number" className="input" min={0} step="0.01" value={form.lease_incentives_receivable}
-            onChange={(e) => set("lease_incentives_receivable", num(e.target.value))} />
+          <input type="number" className="input" min={0} step="0.01"
+            value={numVal("lease_incentives_receivable")}
+            onChange={(e) => onNumChange("lease_incentives_receivable", e.target.value)}
+            onBlur={(e) => onNumBlur("lease_incentives_receivable", e.target.value)} />
         </Field>
         <Field label="Prepaid Payments">
-          <input type="number" className="input" min={0} step="0.01" value={form.prepaid_payments}
-            onChange={(e) => set("prepaid_payments", num(e.target.value))} />
+          <input type="number" className="input" min={0} step="0.01"
+            value={numVal("prepaid_payments")}
+            onChange={(e) => onNumChange("prepaid_payments", e.target.value)}
+            onBlur={(e) => onNumBlur("prepaid_payments", e.target.value)} />
         </Field>
         <Field label="Residual Value Guarantee">
-          <input type="number" className="input" min={0} step="0.01" value={form.residual_value_guarantee}
-            onChange={(e) => set("residual_value_guarantee", num(e.target.value))} />
+          <input type="number" className="input" min={0} step="0.01"
+            value={numVal("residual_value_guarantee")}
+            onChange={(e) => onNumChange("residual_value_guarantee", e.target.value)}
+            onBlur={(e) => onNumBlur("residual_value_guarantee", e.target.value)} />
         </Field>
       </div>
 
@@ -228,8 +262,9 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
         <Field label="Annual Discount Rate (IBR) *">
           <div className="relative">
             <input type="number" className="input pr-8" required min={0} max={1} step="0.0001"
-              value={form.discount_rate}
-              onChange={(e) => set("discount_rate", num(e.target.value))} />
+              value={numVal("discount_rate")}
+              onChange={(e) => onNumChange("discount_rate", e.target.value)}
+              onBlur={(e) => onNumBlur("discount_rate", e.target.value)} />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-[var(--text-muted)]">
               {fmtPct(form.discount_rate)}
             </span>
