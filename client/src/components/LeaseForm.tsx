@@ -41,6 +41,15 @@ function merge(base: FormData, ex: ExtractedLease): FormData {
   };
 }
 
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      {children}
+    </div>
+  );
+}
+
 interface Props {
   initial?: Lease;
   extracted?: ExtractedLease;
@@ -90,13 +99,6 @@ export function LeaseForm({ initial, extracted, entities, rates, onSave, onCance
       set("discount_rate_id", null);
     }
   };
-
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div>
-      <label className="label">{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} className="space-y-6">
