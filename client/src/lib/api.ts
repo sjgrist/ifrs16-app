@@ -37,6 +37,14 @@ export const api = {
         return r.json() as Promise<{ extracted: ExtractedLease; filename: string }>;
       });
     },
+    importCsv: (file: File) => {
+      const form = new FormData();
+      form.append("csv", file);
+      return fetch(BASE + "/leases/import-csv", { method: "POST", body: form }).then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).error);
+        return r.json() as Promise<{ imported: number; errors: { row: number; message: string }[] }>;
+      });
+    },
   },
   schedules: {
     get: (leaseId: number) => request<ScheduleResponse>("/schedules/" + leaseId),

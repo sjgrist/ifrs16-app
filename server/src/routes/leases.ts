@@ -9,6 +9,72 @@ import type { LeaseInput } from "@ifrs16/lib";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+// POST /api/leases/import-csv
+router.post("/import-csv", upload.single("csv"), async (req: Request, res: Response) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No CSV uploaded" });
+    const text = req.file.buffer.toString("utf-8");
+    const rows = parseCsv(text);
+    if (rows.length === 0) return res.status(400).json({ error: "CSV is empty or has no data rows" });
+
+    const sb = getSupabase();
+    const imported: number[] = [];
+    const errors: { row: number; message: string }[] = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const rowNum = i + 2; // 1-indexed, +1 for header
+
+      // Validate required fields
+      if (!r.commencement_date) { errors.push({ row: rowNum, message: "commencement_date is required" }); continue; }
+      const termMonths = Number(r.term_months);
+      if (!termMonths || termMonths <= 0) { errors.push({ row: rowNum, message: "term_months must be a positive number" }); continue; }
+      const paymentAmount = Number(r.payment_amount);
+      if (!paymentAmount || paymentAmount <= 0) { errors.push({ row: rowNum, message: "payment_amount must be a positive number" }); continue; }
+      const discountRate = Number(r.discount_rate);
+      if (!discountRate || discountRate <= 0) { errors.push({ row: rowNum, message: "discount_rate must be a positive number" }); continue; }
+
+      const d: Record<string, unknown> = {
+        entity_id: r.entity_id ? Number(r.entity_id) : null,
+        lessor_name: r.lessor_name || "",
+        asset_description: r.asset_description || "",
+        asset_class: r.asset_class || "property",
+        commencement_date: r.commencement_date,
+        term_months: termMonths,
+        extension_option_months: Number(r.extension_option_months) || 0,
+        extension_reasonably_certain: r.extension_reasonably_certain === "true" || r.extension_reasonably_certain === "1" ? 1 : 0,
+        currency: r.currency || "GBP",
+        payment_amount: paymentAmount,
+        payment_frequency: r.payment_frequency || "monthly",
+        payment_timing: r.payment_timing || "arrears",
+        rent_free_months: Number(r.rent_free_months) || 0,
+        initial_direct_costs: Number(r.initial_direct_costs) || 0,
+        lease_incentives_receivable: Number(r.lease_incentives_receivable) || 0,
+        prepaid_payments: Number(r.prepaid_payments) || 0,
+        residual_value_guarantee: Number(r.residual_value_guarantee) || 0,
+        discount_rate: discountRate,
+        discount_rate_id: r.discount_rate_id ? Number(r.discount_rate_id) : null,
+        country: r.country || "",
+        status: r.status || "active",
+        notes: r.notes || "",
+      };
+
+      try {
+        const { data: lease, error: insertError } = await sb.from("leases").insert(d).select().single();
+        if (insertError) { errors.push({ row: rowNum, message: insertError.message }); continue; }
+        await computeAndSaveSchedule(sb, (lease as Record<string, unknown>).id as number, d);
+        imported.push((lease as Record<string, unknown>).id as number);
+      } catch (e: unknown) {
+        errors.push({ row: rowNum, message: (e as Error).message });
+      }
+    }
+
+    res.json({ imported: imported.length, errors });
+  } catch (err: unknown) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/leases/extract
 router.post("/extract", upload.single("pdf"), async (req: Request, res: Response) => {
   try {
@@ -189,6 +255,38 @@ async function computeAndSaveSchedule(
       total_pl_charge: r.totalPLCharge,
     }))
   );
+}
+
+function splitCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (c === "," && !inQuotes) {
+      result.push(current);
+      current = "";
+    } else {
+      current += c;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const headers = splitCsvLine(lines[0]).map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const values = splitCsvLine(line);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = (values[i] ?? "").trim(); });
+    return row;
+  });
 }
 
 export default router;

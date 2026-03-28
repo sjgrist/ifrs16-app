@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { Plus, Upload, Edit2, Trash2, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Plus, Upload, Edit2, Trash2, ChevronDown, ChevronRight, FileSpreadsheet, Download, CheckCircle, XCircle } from "lucide-react";
 import { api, type Lease, type ExtractedLease, type ScheduleRow } from "../lib/api";
 import { useAppStore } from "../lib/store";
 import { fmt, fmtDate, fmtPct, statusBadge, assetClassLabel, downloadBlob } from "../lib/utils";
@@ -21,6 +21,7 @@ export function LeasesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Lease | null>(null);
   const [extracted, setExtracted] = useState<ExtractedLease | null>(null);
+  const [showCsvModal, setShowCsvModal] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [scheduleCache, setScheduleCache] = useState<Record<number, ScheduleRow[]>>({});
 
@@ -135,6 +136,9 @@ export function LeasesPage() {
           <p className="text-sm text-[var(--text-muted)]">{total} lease{total !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowCsvModal(true)} className="btn-secondary">
+            <FileSpreadsheet size={16} /> Import CSV
+          </button>
           <button onClick={() => { setEditing(null); setExtracted(null); setShowForm(true); }} className="btn-primary">
             <Plus size={16} /> New Lease
           </button>
@@ -271,6 +275,132 @@ export function LeasesPage() {
           onCancel={() => { setShowForm(false); setEditing(null); setExtracted(null); }}
         />
       </Modal>
+
+      {/* CSV import modal */}
+      <Modal open={showCsvModal} onClose={() => setShowCsvModal(false)} title="Import Leases from CSV" size="lg">
+        <CsvImportModal onClose={() => setShowCsvModal(false)} onImported={() => { setShowCsvModal(false); load(); }} />
+      </Modal>
+    </div>
+  );
+}
+
+const CSV_TEMPLATE_HEADERS = [
+  "lessor_name", "asset_description", "asset_class", "commencement_date",
+  "term_months", "payment_amount", "payment_frequency", "payment_timing",
+  "discount_rate", "currency", "status", "entity_id",
+  "extension_option_months", "extension_reasonably_certain",
+  "rent_free_months", "initial_direct_costs", "lease_incentives_receivable",
+  "prepaid_payments", "residual_value_guarantee", "country", "notes",
+];
+const CSV_TEMPLATE_EXAMPLE = [
+  "Landlord Ltd", "Head Office", "property", "2024-01-01",
+  "60", "10000", "monthly", "arrears",
+  "5.5", "GBP", "active", "",
+  "0", "false",
+  "0", "0", "0",
+  "0", "0", "UK", "",
+];
+
+function CsvImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState<{ imported: number; errors: { row: number; message: string }[] } | null>(null);
+
+  const downloadTemplate = () => {
+    const csv = [CSV_TEMPLATE_HEADERS.join(","), CSV_TEMPLATE_EXAMPLE.join(",")].join("\n");
+    downloadBlob(new Blob([csv], { type: "text/csv" }), "lease-import-template.csv");
+  };
+
+  const handleImport = async () => {
+    if (!file) return;
+    setImporting(true);
+    setResult(null);
+    try {
+      const res = await api.leases.importCsv(file);
+      setResult(res);
+      if (res.imported > 0) toast(`${res.imported} lease${res.imported !== 1 ? "s" : ""} imported`, "success");
+      if (res.errors.length === 0 && res.imported > 0) onImported();
+    } catch (e: unknown) {
+      toast((e as Error).message, "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Template download */}
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 flex items-start gap-3">
+        <Download size={18} className="text-brand-500 mt-0.5 shrink-0" />
+        <div className="flex-1">
+          <p className="text-sm font-medium">Download template</p>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">
+            CSV with all supported columns and an example row. Required: <code className="text-xs">commencement_date</code>, <code className="text-xs">term_months</code>, <code className="text-xs">payment_amount</code>, <code className="text-xs">discount_rate</code>.
+          </p>
+          <button onClick={downloadTemplate} className="btn-secondary mt-2 text-xs py-1 px-3">
+            Download template.csv
+          </button>
+        </div>
+      </div>
+
+      {/* File picker */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5">Select CSV file</label>
+        <div
+          className="border-2 border-dashed border-[var(--border)] rounded-lg p-6 text-center cursor-pointer hover:border-brand-400 transition-colors"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
+          />
+          {file ? (
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <FileSpreadsheet size={18} className="text-brand-500" />
+              <span className="font-medium">{file.name}</span>
+              <span className="text-[var(--text-muted)]">({(file.size / 1024).toFixed(1)} KB)</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1.5">
+              <FileSpreadsheet size={24} className="text-[var(--text-muted)]" />
+              <p className="text-sm">Click to select a CSV file</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Results */}
+      {result && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 text-sm">
+            <CheckCircle size={16} className="text-emerald-500" />
+            <span><strong>{result.imported}</strong> lease{result.imported !== 1 ? "s" : ""} imported successfully</span>
+          </div>
+          {result.errors.length > 0 && (
+            <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3 max-h-40 overflow-y-auto">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1.5 flex items-center gap-1">
+                <XCircle size={13} /> {result.errors.length} row{result.errors.length !== 1 ? "s" : ""} with errors
+              </p>
+              {result.errors.map((e) => (
+                <p key={e.row} className="text-xs text-red-600 dark:text-red-400">Row {e.row}: {e.message}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="btn-secondary">Cancel</button>
+        <button onClick={handleImport} disabled={!file || importing} className="btn-primary">
+          {importing ? <><Spinner className="w-4 h-4" /> Importing…</> : <><Upload size={15} /> Import</>}
+        </button>
+      </div>
     </div>
   );
 }
