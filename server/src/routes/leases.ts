@@ -3,8 +3,9 @@ import multer from "multer";
 import pdfParse from "pdf-parse";
 import { getSupabase } from "../db";
 import { extractLeaseData } from "../services/extraction";
-import { buildSchedule } from "@ifrs16/lib";
-import type { LeaseInput } from "@ifrs16/lib";
+import { buildSchedule } from "@rou-lio/lib";
+import type { LeaseInput } from "@rou-lio/lib";
+import type { AuthRequest } from "../middleware/auth";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -12,6 +13,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 // POST /api/leases/import-csv
 router.post("/import-csv", upload.single("csv"), async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     if (!req.file) return res.status(400).json({ error: "No CSV uploaded" });
     const text = req.file.buffer.toString("utf-8");
     const rows = parseCsv(text);
@@ -35,6 +37,7 @@ router.post("/import-csv", upload.single("csv"), async (req: Request, res: Respo
       if (!discountRate || discountRate <= 0) { errors.push({ row: rowNum, message: "discount_rate must be a positive number" }); continue; }
 
       const d: Record<string, unknown> = {
+        org_id: orgId,
         entity_id: r.entity_id ? Number(r.entity_id) : null,
         lessor_name: r.lessor_name || "",
         asset_description: r.asset_description || "",
@@ -90,10 +93,11 @@ router.post("/extract", upload.single("pdf"), async (req: Request, res: Response
 // GET /api/leases
 router.get("/", async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     const { entity_id, status, search } = req.query;
     const sb = getSupabase();
 
-    let query = sb.from("leases").select("*, entities(name)");
+    let query = sb.from("leases").select("*, entities(name)").eq("org_id", orgId);
 
     if (entity_id) query = query.eq("entity_id", Number(entity_id));
     if (status)    query = query.eq("status", status as string);
@@ -121,8 +125,9 @@ router.get("/", async (req: Request, res: Response) => {
 // GET /api/leases/:id
 router.get("/:id", async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     const { data, error } = await getSupabase()
-      .from("leases").select("*, entities(name)").eq("id", parseInt(req.params.id)).single();
+      .from("leases").select("*, entities(name)").eq("id", parseInt(req.params.id)).eq("org_id", orgId).single();
     if (error) return res.status(404).json({ error: "Not found" });
     const lease = { ...data, entity_name: (data as Record<string, unknown> & { entities?: { name?: string } }).entities?.name ?? null, entities: undefined };
     res.json(lease);
@@ -134,10 +139,12 @@ router.get("/:id", async (req: Request, res: Response) => {
 // POST /api/leases
 router.post("/", async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     const d = req.body;
     const sb = getSupabase();
 
     const { data: lease, error } = await sb.from("leases").insert({
+      org_id: orgId,
       entity_id: d.entity_id,
       lessor_name: d.lessor_name || "",
       asset_description: d.asset_description || "",
@@ -173,6 +180,7 @@ router.post("/", async (req: Request, res: Response) => {
 // PUT /api/leases/:id
 router.put("/:id", async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     const d = req.body;
     const id = parseInt(req.params.id);
     const sb = getSupabase();
@@ -201,7 +209,7 @@ router.put("/:id", async (req: Request, res: Response) => {
       status: d.status || "active",
       notes: d.notes || "",
       updated_at: new Date().toISOString(),
-    }).eq("id", id);
+    }).eq("id", id).eq("org_id", orgId);
 
     if (error) return res.status(500).json({ error: error.message });
     await computeAndSaveSchedule(sb, id, d);
@@ -213,8 +221,9 @@ router.put("/:id", async (req: Request, res: Response) => {
 
 // DELETE /api/leases/:id
 router.delete("/:id", async (req: Request, res: Response) => {
+  const orgId = (req as AuthRequest).orgId;
   const { error } = await getSupabase()
-    .from("leases").delete().eq("id", parseInt(req.params.id));
+    .from("leases").delete().eq("id", parseInt(req.params.id)).eq("org_id", orgId);
   if (error) return res.status(500).json({ error: error.message });
   res.json({ ok: true });
 });

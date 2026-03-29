@@ -1,5 +1,5 @@
 {
-  "name": "@ifrs16/client",
+  "name": "@rou-lio/client",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -8,13 +8,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ifrs16/lib": "*",
+    "@rou-lio/lib": "*",
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-select": "^2.0.0",
     "@radix-ui/react-tabs": "^1.0.4",
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.0.7",
+    "@supabase/supabase-js": "^2.100.1",
     "clsx": "^2.1.0",
     "date-fns": "^3.3.1",
     "exceljs": "^4.4.0",

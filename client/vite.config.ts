@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@ifrs16/lib": path.resolve(__dirname, "../lib/src/index.ts"),
+      "@rou-lio/lib": path.resolve(__dirname, "../lib/src/index.ts"),
     },
   },
   server: {

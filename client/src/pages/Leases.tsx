@@ -97,7 +97,7 @@ export function LeasesPage() {
 
   const exportScheduleXlsx = async (lease: Lease) => {
     try {
-      const { buildSchedule } = await import("@ifrs16/lib");
+      const { buildSchedule } = await import("@rou-lio/lib");
       const schedule = buildSchedule({
         commencementDate: lease.commencement_date,
         termMonths: lease.term_months,
@@ -177,6 +177,7 @@ export function LeasesPage() {
           onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value }))}>
           <option value="">All statuses</option>
           <option value="active">Active</option>
+          <option value="upcoming">Upcoming</option>
           <option value="expired">Expired</option>
           <option value="modified">Modified</option>
         </select>
@@ -236,7 +237,11 @@ export function LeasesPage() {
                     <td className="table-cell">{fmt(lease.payment_amount)}</td>
                     <td className="table-cell">{fmtPct(lease.discount_rate)}</td>
                     <td className="table-cell-left">
-                      <span className={statusBadge(lease.status)}>{lease.status}</span>
+                      {(() => {
+                        const today = new Date().toISOString().slice(0, 10);
+                        const ds = lease.status === "active" && lease.commencement_date > today ? "upcoming" : lease.status;
+                        return <span className={statusBadge(ds)}>{ds}</span>;
+                      })()}
                     </td>
                     <td className="table-cell-left">
                       <div className="flex gap-1">

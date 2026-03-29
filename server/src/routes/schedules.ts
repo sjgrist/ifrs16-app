@@ -1,9 +1,27 @@
 import { Router, Request, Response } from "express";
 import { getSupabase } from "../db";
-import { buildSchedule, buildRollForward } from "@ifrs16/lib";
-import type { LeaseInput } from "@ifrs16/lib";
+import { buildSchedule, buildRollForward } from "@rou-lio/lib";
+import type { LeaseInput, AmortisationRow } from "@rou-lio/lib";
+import type { AuthRequest } from "../middleware/auth";
 
 const router = Router();
+
+/** Add n months to an ISO date string (YYYY-MM-DD). */
+function addMonths(isoDate: string, months: number): string {
+  const d = new Date(isoDate + "T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Closing liability at a given point in time: the last schedule row
+ * with date <= targetDate, or 0 if the lease has fully ended.
+ */
+function closingLiabilityAtDate(rows: AmortisationRow[], targetDate: string): number {
+  const prior = rows.filter((r) => r.date <= targetDate);
+  if (prior.length === 0) return 0;
+  return prior[prior.length - 1].closingLiability;
+}
 
 // GET /api/schedules/rollforward/summary
 router.get("/rollforward/summary", async (req: Request, res: Response) => {
@@ -12,8 +30,9 @@ router.get("/rollforward/summary", async (req: Request, res: Response) => {
     if (!period_start || !period_end)
       return res.status(400).json({ error: "period_start and period_end required" });
 
+    const orgId = (req as AuthRequest).orgId;
     const sb = getSupabase();
-    const query = sb.from("leases").select("*, entities(name)");
+    const query = sb.from("leases").select("*, entities(name)").eq("org_id", orgId);
     const { data: leases, error } = entity_id
       ? await query.eq("entity_id", Number(entity_id))
       : await query;
@@ -21,21 +40,34 @@ router.get("/rollforward/summary", async (req: Request, res: Response) => {
 
     const results = [];
     for (const lease of leases || []) {
-      const input = leaseToInput(lease as Record<string, unknown>);
+      const l = lease as Record<string, unknown>;
+      const input = leaseToInput(l);
       const schedule = buildSchedule(input);
       const entityName = (lease as Record<string, unknown> & { entities?: { name?: string } }).entities?.name ?? "";
       const rf = buildRollForward(
         entityName, schedule.rows,
         schedule.initialRou, schedule.initialLiability,
         period_start as string, period_end as string,
-        (lease as Record<string, unknown>).commencement_date as string
+        l.commencement_date as string
       );
+
+      // Current / non-current split at period end
+      // Current = closing liability now  −  closing liability 12 months from now
+      const date12Later = addMonths(period_end as string, 12);
+      const liab12 = closingLiabilityAtDate(schedule.rows, date12Later);
+      const closingCurrentLiability    = Math.round(Math.max(0, rf.closingLiability - liab12) * 100) / 100;
+      const closingNonCurrentLiability = Math.round(Math.max(0, rf.closingLiability - closingCurrentLiability) * 100) / 100;
+
       results.push({
-        leaseId: (lease as Record<string, unknown>).id,
-        assetDescription: (lease as Record<string, unknown>).asset_description,
-        lessorName: (lease as Record<string, unknown>).lessor_name,
-        currency: (lease as Record<string, unknown>).currency,
+        leaseId: l.id,
+        assetDescription: l.asset_description,
+        assetClass: l.asset_class,
+        discountRate: l.discount_rate,
+        lessorName: l.lessor_name,
+        currency: l.currency,
         ...rf,
+        closingCurrentLiability,
+        closingNonCurrentLiability,
       });
     }
     res.json(results);
@@ -47,11 +79,12 @@ router.get("/rollforward/summary", async (req: Request, res: Response) => {
 // GET /api/schedules/:leaseId
 router.get("/:leaseId", async (req: Request, res: Response) => {
   try {
+    const orgId = (req as AuthRequest).orgId;
     const sb = getSupabase();
     const leaseId = parseInt(req.params.leaseId);
 
     const { data: lease, error: leaseErr } = await sb
-      .from("leases").select("*").eq("id", leaseId).single();
+      .from("leases").select("*").eq("id", leaseId).eq("org_id", orgId).single();
     if (leaseErr) return res.status(404).json({ error: "Lease not found" });
 
     const { data: dbRows } = await sb

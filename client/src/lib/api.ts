@@ -1,8 +1,15 @@
+import { getAuthToken } from "./authStore";
+
 const BASE = "/api";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
   const res = await fetch(BASE + path, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
     ...options,
   });
   if (!res.ok) {
@@ -30,17 +37,25 @@ export const api = {
     update: (id: number, d: Partial<Lease>) => request("/leases/" + id, { method: "PUT", body: JSON.stringify(d) }),
     delete: (id: number) => request("/leases/" + id, { method: "DELETE" }),
     extract: (file: File) => {
+      const token = getAuthToken();
       const form = new FormData();
       form.append("pdf", file);
-      return fetch(BASE + "/leases/extract", { method: "POST", body: form }).then(async (r) => {
+      return fetch(BASE + "/leases/extract", {
+        method: "POST", body: form,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).error);
         return r.json() as Promise<{ extracted: ExtractedLease; filename: string }>;
       });
     },
     importCsv: (file: File) => {
+      const token = getAuthToken();
       const form = new FormData();
       form.append("csv", file);
-      return fetch(BASE + "/leases/import-csv", { method: "POST", body: form }).then(async (r) => {
+      return fetch(BASE + "/leases/import-csv", {
+        method: "POST", body: form,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).then(async (r) => {
         if (!r.ok) throw new Error((await r.json()).error);
         return r.json() as Promise<{ imported: number; errors: { row: number; message: string }[] }>;
       });
@@ -68,6 +83,24 @@ export const api = {
       request<AccountCode[]>("/settings/accounts" + (entityId ? `?entity_id=${entityId}` : "")),
     updateAccount: (d: Partial<AccountCode>) =>
       request("/settings/accounts", { method: "PUT", body: JSON.stringify(d) }),
+  },
+  fxRates: {
+    list: () => request<FxRate[]>("/fxrates"),
+    upsert: (d: { from_ccy: string; to_ccy: string; rate: number; rate_date?: string; source?: string }) =>
+      request<FxRate>("/fxrates", { method: "POST", body: JSON.stringify(d) }),
+    delete: (id: number) => request("/fxrates/" + id, { method: "DELETE" }),
+    lookup: (from: string, to: string) =>
+      request<{ base: string; date: string; rates: Record<string, number> }>(
+        `/fxrates/lookup?from=${from}&to=${encodeURIComponent(to)}`
+      ),
+  },
+  auth: {
+    createOrg: (name: string) => request<{ org: OrgInfo }>("/auth/org", { method: "POST", body: JSON.stringify({ name }) }),
+    joinOrg: (invite_code: string) => request<{ org: OrgInfo }>("/auth/join", { method: "POST", body: JSON.stringify({ invite_code }) }),
+    getMembers: () => request<OrgMember[]>("/auth/members"),
+    updateMember: (userId: string, role: string) =>
+      request("/auth/members/" + userId, { method: "PATCH", body: JSON.stringify({ role }) }),
+    removeMember: (userId: string) => request("/auth/members/" + userId, { method: "DELETE" }),
   },
 };
 
@@ -109,10 +142,13 @@ export interface ScheduleResponse {
 }
 export interface RollForwardRow {
   entity: string; leaseId: number; assetDescription: string;
+  assetClass: string; discountRate: number;
   lessorName: string; currency: string;
   openingRou: number; additionsRou: number; depreciationRou: number; closingRou: number;
   openingLiability: number; additionsLiability: number;
   interestLiability: number; paymentsLiability: number; closingLiability: number;
+  closingCurrentLiability: number;
+  closingNonCurrentLiability: number;
 }
 export interface JournalLine {
   date: string; accountCode: string; accountDescription: string;
@@ -126,6 +162,17 @@ export interface DiscountRate {
   id: number; label: string; currency: string; tenor_months: number;
   base_rate: number; credit_spread: number; security_adj: number;
   ibr: number; effective_date: string; notes: string;
+}
+export interface FxRate {
+  id: number; org_id: string;
+  from_ccy: string; to_ccy: string;
+  rate: number; rate_date: string;
+  source: string; updated_at: string;
+}
+export interface OrgInfo { id: string; name: string; role: "admin" | "member"; }
+export interface OrgMember {
+  id: string; user_id: string; role: "admin" | "member";
+  joined_at: string; email: string; name: string;
 }
 export interface AccountCode {
   id: number; entity_id: number | null; asset_class: string;

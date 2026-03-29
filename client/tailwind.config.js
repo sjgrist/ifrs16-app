@@ -6,12 +6,12 @@ export default {
     extend: {
       colors: {
         brand: {
-          50:  "#f0f4ff",
-          100: "#e0eaff",
-          500: "#3b5bdb",
-          600: "#2f4ac7",
-          700: "#2540b0",
-          900: "#1a2d80",
+          50:  "#fff3ef",
+          100: "#ffe0d4",
+          500: "#e55c2e",   // coral
+          600: "#ce4f24",
+          700: "#b6421a",
+          900: "#7c2710",
         },
       },
       fontFamily: {

@@ -320,33 +320,6 @@ export function DiscountRatePage() {
         </div>
       </div>
 
-      {/* Further Reading */}
-      <div className="card overflow-hidden">
-        <div className="px-6 py-4 border-b border-[var(--border)]">
-          <h2 className="font-semibold text-sm">Further Reading & External Resources</h2>
-          <p className="text-xs text-[var(--text-muted)] mt-0.5">Authoritative sources for IBR determination and IFRS 16 compliance</p>
-        </div>
-        <div className="grid grid-cols-2 gap-0 divide-x divide-y divide-[var(--border)]">
-          {FURTHER_READING.map((group) => (
-            <div key={group.category} className="p-5">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-3">{group.category}</h3>
-              <div className="space-y-3">
-                {group.items.map((item) => (
-                  <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-start gap-2 group">
-                    <ExternalLink size={13} className="text-brand-500 shrink-0 mt-0.5 group-hover:text-brand-600" />
-                    <div>
-                      <p className="text-sm font-medium text-brand-600 dark:text-brand-400 group-hover:underline leading-tight">{item.label}</p>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{item.desc}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* Rate library */}
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-[var(--border)] flex items-center justify-between">
@@ -378,7 +351,7 @@ export function DiscountRatePage() {
                   <td className="table-cell font-mono">{fmtPct(r.base_rate)}</td>
                   <td className="table-cell font-mono">{fmtPct(r.credit_spread)}</td>
                   <td className="table-cell font-mono">({fmtPct(r.security_adj)})</td>
-                  <td className="table-cell font-mono font-semibold text-brand-600 dark:text-brand-400">{fmtPct(r.ibr)}</td>
+                  <td className="table-cell font-mono font-semibold text-brand-600 dark:text-brand-500">{fmtPct(r.ibr)}</td>
                   <td className="table-cell-left text-xs text-[var(--text-muted)]">{r.effective_date}</td>
                   <td className="table-cell-left">
                     <div className="flex gap-1">
@@ -397,6 +370,33 @@ export function DiscountRatePage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      {/* Further Reading */}
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-[var(--border)]">
+          <h2 className="font-semibold text-sm">Further Reading & External Resources</h2>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">Authoritative sources for IBR determination and IFRS 16 compliance</p>
+        </div>
+        <div className="grid grid-cols-2 gap-0 divide-x divide-y divide-[var(--border)]">
+          {FURTHER_READING.map((group) => (
+            <div key={group.category} className="p-5">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-3">{group.category}</h3>
+              <div className="space-y-3">
+                {group.items.map((item) => (
+                  <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
+                    className="flex items-start gap-2 group">
+                    <ExternalLink size={13} className="text-brand-500 shrink-0 mt-0.5 group-hover:text-brand-600" />
+                    <div>
+                      <p className="text-sm font-medium text-brand-600 dark:text-brand-500 group-hover:underline leading-tight">{item.label}</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{item.desc}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

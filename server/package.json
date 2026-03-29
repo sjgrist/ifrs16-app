@@ -1,5 +1,5 @@
 {
-  "name": "@ifrs16/server",
+  "name": "@rou-lio/server",
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -8,7 +8,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.55.0",
-    "@ifrs16/lib": "*",
+    "@rou-lio/lib": "*",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",

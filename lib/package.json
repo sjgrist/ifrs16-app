@@ -1,5 +1,5 @@
 {
-  "name": "@ifrs16/lib",
+  "name": "@rou-lio/lib",
   "version": "1.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

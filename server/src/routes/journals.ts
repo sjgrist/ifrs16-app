@@ -1,12 +1,48 @@
 import { Router, Request, Response } from "express";
 import { getSupabase } from "../db";
+import type { AuthRequest } from "../middleware/auth";
 import {
   generateCommencementJournals, generateMonthlyJournals,
   buildSchedule, DEFAULT_ACCOUNT_CODES,
-} from "@ifrs16/lib";
-import type { AccountCodes, AssetClass, LeaseInput } from "@ifrs16/lib";
+} from "@rou-lio/lib";
+import type { AccountCodes, AssetClass, LeaseInput, AmortisationRow } from "@rou-lio/lib";
 
 const router = Router();
+
+// ── Helpers for current / non-current split ───────────────────────────────────
+
+/**
+ * Returns the closing liability at the end of a given schedule period.
+ *   periodIndex 0  → commencement date (= initialLiability, before period 1)
+ *   periodIndex n  → rows[n-1].closingLiability  (rows are 1-indexed by .period)
+ *   periodIndex > rows.length → 0 (lease has ended)
+ */
+function closingLiabilityAt(
+  rows: AmortisationRow[],
+  periodIndex: number,
+  initialLiability: number
+): number {
+  if (periodIndex <= 0) return initialLiability;
+  if (periodIndex > rows.length) return 0;
+  return rows[periodIndex - 1].closingLiability;
+}
+
+/**
+ * Current portion of the lease liability at a given period-end:
+ *   = closing liability now  −  closing liability 12 months from now
+ * (capped at 0; can't be negative)
+ */
+function currentPortionAt(
+  rows: AmortisationRow[],
+  periodIndex: number,
+  initialLiability: number
+): number {
+  const now  = closingLiabilityAt(rows, periodIndex, initialLiability);
+  const in12 = closingLiabilityAt(rows, periodIndex + 12, initialLiability);
+  return Math.max(0, now - in12);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 router.get("/", async (req: Request, res: Response) => {
   try {
@@ -23,14 +59,15 @@ router.get("/", async (req: Request, res: Response) => {
       ? new Date(periodYear, periodMonth, 0).toISOString().slice(0, 10)
       : `${periodYear}-12-31`;
 
+    const orgId = (req as AuthRequest).orgId;
     const { data: leases, error: leaseErr } = await sb
       .from("leases").select("*")
-      .eq("entity_id", Number(entity_id)).neq("status", "expired");
+      .eq("org_id", orgId).eq("entity_id", Number(entity_id)).neq("status", "expired");
     if (leaseErr) return res.status(500).json({ error: leaseErr.message });
 
     const { data: dbCodes } = await sb
       .from("account_codes").select("*")
-      .eq("entity_id", Number(entity_id)).eq("asset_class", "all").single();
+      .eq("org_id", orgId).eq("entity_id", Number(entity_id)).eq("asset_class", "all").single();
 
     const codes: AccountCodes = dbCodes
       ? {
@@ -66,18 +103,28 @@ router.get("/", async (req: Request, res: Response) => {
       const leaseRef = `LEASE-${String(l.id).padStart(4, "0")}`;
       const assetClass = (l.asset_class as AssetClass) || "property";
 
+      // Current portion at commencement (period index 0)
+      const commCurrentPortion = currentPortionAt(schedule.rows, 0, schedule.initialLiability);
+
       if ((l.commencement_date as string) >= periodStart && (l.commencement_date as string) <= periodEnd) {
         const cj = generateCommencementJournals(
           l.commencement_date as string, schedule.initialRou, schedule.initialLiability,
           (l.initial_direct_costs as number) || 0, (l.prepaid_payments as number) || 0,
-          leaseRef, assetClass, codes
+          leaseRef, assetClass, codes,
+          commCurrentPortion
         );
         allJournals.push(...cj.map((j) => ({ ...j, leaseId: l.id, type: "commencement" })));
       }
 
       const periodRows = schedule.rows.filter((r) => r.date >= periodStart && r.date <= periodEnd);
       for (const row of periodRows) {
-        const mj = generateMonthlyJournals(row, leaseRef, assetClass, codes);
+        // row.period is 1-indexed; opening = periodIndex row.period − 1
+        const openingCurrent = currentPortionAt(schedule.rows, row.period - 1, schedule.initialLiability);
+        const closingCurrent = currentPortionAt(schedule.rows, row.period,     schedule.initialLiability);
+        const mj = generateMonthlyJournals(row, leaseRef, assetClass, codes, {
+          opening: openingCurrent,
+          closing: closingCurrent,
+        });
         allJournals.push(...mj.map((j) => ({ ...j, leaseId: l.id, type: "monthly" })));
       }
     }

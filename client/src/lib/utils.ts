@@ -27,10 +27,11 @@ export function fmtDate(iso: string | null | undefined): string {
 
 export function statusBadge(status: string) {
   switch (status) {
-    case "active": return "badge-green";
-    case "expired": return "badge-gray";
+    case "active":   return "badge-green";
+    case "expired":  return "badge-gray";
     case "modified": return "badge-yellow";
-    default: return "badge-gray";
+    case "upcoming": return "badge-blue";
+    default:         return "badge-gray";
   }
 }
 

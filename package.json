@@ -1,5 +1,5 @@
 {
-  "name": "ifrs16-app",
+  "name": "rou-lio",
   "private": true,
   "workspaces": ["lib", "server", "client"],
   "scripts": {

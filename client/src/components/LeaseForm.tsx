@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Lease, ExtractedLease, Entity, DiscountRate } from "../lib/api";
 import { fmtPct } from "../lib/utils";
-import { presentValue } from "@ifrs16/lib";
+import { presentValue } from "@rou-lio/lib";
 
 type FormData = Omit<Lease, "id" | "entity_name">;
 

@@ -1,22 +1,28 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Edit2, Save } from "lucide-react";
-import { api, type Entity, type AccountCode } from "../lib/api";
+import { Plus, Trash2, Edit2, Save, Copy, Shield, UserMinus } from "lucide-react";
+import { api, type Entity, type AccountCode, type OrgMember } from "../lib/api";
 import { useAppStore } from "../lib/store";
+import { useAuthStore } from "../lib/authStore";
 import { useToast } from "../components/ui/Toast";
 
 export function SettingsPage() {
   const { toast } = useToast();
   const { entities, loadEntities } = useAppStore();
+  const { org, user } = useAuthStore();
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [accounts, setAccounts] = useState<AccountCode[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
 
   const [entityForm, setEntityForm] = useState({ name: "", currency: "GBP", country: "" });
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+
+  const isAdmin = org?.role === "admin";
 
   useEffect(() => {
     loadEntities();
     api.settings.get().then(setSettings).catch(() => {});
     api.settings.getAccounts().then(setAccounts).catch(() => {});
+    if (isAdmin) api.auth.getMembers().then(setMembers).catch(() => {});
   }, []);
 
   const saveSettings = async () => {
@@ -50,6 +56,23 @@ export function SettingsPage() {
       await api.settings.updateAccount(a);
       toast("Account codes saved");
       api.settings.getAccounts().then(setAccounts);
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
+  };
+
+  const changeRole = async (userId: string, role: string) => {
+    try {
+      await api.auth.updateMember(userId, role);
+      setMembers((ms) => ms.map((m) => m.user_id === userId ? { ...m, role: role as OrgMember["role"] } : m));
+      toast("Role updated");
+    } catch (e: unknown) { toast((e as Error).message, "error"); }
+  };
+
+  const removeMember = async (userId: string) => {
+    if (!confirm("Remove this member from the organisation?")) return;
+    try {
+      await api.auth.removeMember(userId);
+      setMembers((ms) => ms.filter((m) => m.user_id !== userId));
+      toast("Member removed");
     } catch (e: unknown) { toast((e as Error).message, "error"); }
   };
 
@@ -138,6 +161,92 @@ export function SettingsPage() {
           />
         </div>
       </section>
+
+      {/* Organisation */}
+      {org && (
+        <section className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <h2 className="font-semibold text-sm">Organisation</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">{org.name}</p>
+          </div>
+          <div className="p-5 space-y-4">
+            {/* Invite code */}
+            <div>
+              <label className="label">Invite Code</label>
+              <p className="text-xs text-[var(--text-muted)] mb-2">Share this code so others can join your organisation.</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 input font-mono text-xs py-2 bg-[var(--bg)] select-all">{org.id}</code>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(org.id); toast("Copied!"); }}
+                  className="btn-secondary p-2"
+                  title="Copy invite code"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Members (admin only) */}
+            {isAdmin && (
+              <div>
+                <label className="label">Members</label>
+                <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] bg-[var(--bg)]">
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--text-muted)] uppercase">Member</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-[var(--text-muted)] uppercase">Role</th>
+                        <th className="px-4 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {members.map((m) => (
+                        <tr key={m.id} className="border-b border-[var(--border)] last:border-0">
+                          <td className="px-4 py-2">
+                            <div className="font-medium">{m.name !== "unknown" ? m.name : m.email}</div>
+                            <div className="text-xs text-[var(--text-muted)]">{m.email}</div>
+                          </td>
+                          <td className="px-4 py-2">
+                            {m.user_id === user?.id ? (
+                              <span className="text-xs text-[var(--text-muted)]">{m.role} (you)</span>
+                            ) : (
+                              <select
+                                className="input py-1 text-xs"
+                                value={m.role}
+                                onChange={(e) => changeRole(m.user_id, e.target.value)}
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="member">Member</option>
+                              </select>
+                            )}
+                          </td>
+                          <td className="px-4 py-2">
+                            {m.user_id !== user?.id && (
+                              <button
+                                onClick={() => removeMember(m.user_id)}
+                                className="btn-ghost p-1.5 text-red-500"
+                                title="Remove member"
+                              >
+                                <UserMinus size={13} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!isAdmin && (
+              <p className="text-xs text-[var(--text-muted)] flex items-center gap-1">
+                <Shield size={12} /> Only admins can manage members.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Thresholds */}
       <section className="card p-5 space-y-4">
