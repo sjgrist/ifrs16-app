@@ -94,12 +94,17 @@ router.post("/extract", upload.single("pdf"), async (req: Request, res: Response
 router.get("/", async (req: Request, res: Response) => {
   try {
     const orgId = (req as AuthRequest).orgId;
-    const { entity_id, status, search } = req.query;
+    const { entity_id, entity_ids, status, search } = req.query;
     const sb = getSupabase();
 
     let query = sb.from("leases").select("*, entities(name)").eq("org_id", orgId);
 
-    if (entity_id) query = query.eq("entity_id", Number(entity_id));
+    if (entity_ids) {
+      const ids = (entity_ids as string).split(",").map(Number).filter((n) => n > 0);
+      if (ids.length) query = query.in("entity_id", ids);
+    } else if (entity_id) {
+      query = query.eq("entity_id", Number(entity_id));
+    }
     if (status)    query = query.eq("status", status as string);
     if (search) {
       query = query.or(

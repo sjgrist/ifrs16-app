@@ -6,6 +6,7 @@ import { useAppStore } from "../lib/store";
 import { downloadBlob, fmtDate } from "../lib/utils";
 import { Spinner } from "../components/ui/Spinner";
 import { useToast } from "../components/ui/Toast";
+import { EntityMultiSelect } from "../components/ui/EntityMultiSelect";
 
 const CCYS = ["GBP","EUR","USD","AUD","CAD","CHF","SEK","NOK","DKK","JPY","SGD","HKD","NZD","CNY","INR","BRL","MXN","ZAR"];
 const SCALES = [
@@ -59,7 +60,7 @@ export function SchedulesPage() {
   const [loading, setLoading] = useState(false);
 
   const [filter, setFilter] = useState({
-    entity_id: "",
+    entity_ids: [] as number[],
     period_start: new Date().getFullYear() + "-01-01",
     period_end:   new Date().getFullYear() + "-12-31",
   });
@@ -100,7 +101,7 @@ export function SchedulesPage() {
     setLoading(true);
     try {
       const params: Record<string, string> = { period_start: filter.period_start, period_end: filter.period_end };
-      if (filter.entity_id) params.entity_id = filter.entity_id;
+      if (filter.entity_ids.length) params.entity_ids = filter.entity_ids.join(",");
       const rows = await api.schedules.rollforward(params);
       setRollForward(rows);
       const fCcys = [...new Set(rows.map((r) => r.currency))].filter((c) => c !== reportingCcy);
@@ -231,11 +232,11 @@ export function SchedulesPage() {
       <div className="card p-4 flex gap-3 flex-wrap items-end">
         <div>
           <label className="label">Entity</label>
-          <select className="input w-40" value={filter.entity_id}
-            onChange={(e) => setFilter((f) => ({ ...f, entity_id: e.target.value }))}>
-            <option value="">All entities</option>
-            {entities.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
+          <EntityMultiSelect
+            entities={entities}
+            value={filter.entity_ids}
+            onChange={(ids) => setFilter((f) => ({ ...f, entity_ids: ids }))}
+          />
         </div>
         <div>
           <label className="label">Period Start</label>

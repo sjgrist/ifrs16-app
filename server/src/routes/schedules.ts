@@ -26,16 +26,20 @@ function closingLiabilityAtDate(rows: AmortisationRow[], targetDate: string): nu
 // GET /api/schedules/rollforward/summary
 router.get("/rollforward/summary", async (req: Request, res: Response) => {
   try {
-    const { entity_id, period_start, period_end } = req.query;
+    const { entity_id, entity_ids, period_start, period_end } = req.query;
     if (!period_start || !period_end)
       return res.status(400).json({ error: "period_start and period_end required" });
 
     const orgId = (req as AuthRequest).orgId;
     const sb = getSupabase();
-    const query = sb.from("leases").select("*, entities(name)").eq("org_id", orgId);
-    const { data: leases, error } = entity_id
-      ? await query.eq("entity_id", Number(entity_id))
-      : await query;
+    let query = sb.from("leases").select("*, entities(name)").eq("org_id", orgId);
+    if (entity_ids) {
+      const ids = (entity_ids as string).split(",").map(Number).filter((n) => n > 0);
+      if (ids.length) query = query.in("entity_id", ids);
+    } else if (entity_id) {
+      query = query.eq("entity_id", Number(entity_id));
+    }
+    const { data: leases, error } = await query;
     if (error) return res.status(500).json({ error: error.message });
 
     const results = [];

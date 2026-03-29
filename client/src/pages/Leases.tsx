@@ -8,6 +8,7 @@ import { Modal } from "../components/ui/Modal";
 import { Spinner } from "../components/ui/Spinner";
 import { useToast } from "../components/ui/Toast";
 import { LeaseForm } from "../components/LeaseForm";
+import { EntityMultiSelect } from "../components/ui/EntityMultiSelect";
 
 export function LeasesPage() {
   const { toast } = useToast();
@@ -25,13 +26,13 @@ export function LeasesPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [scheduleCache, setScheduleCache] = useState<Record<number, ScheduleRow[]>>({});
 
-  const [filter, setFilter] = useState({ entity_id: "", status: "", search: "" });
+  const [filter, setFilter] = useState<{ entity_ids: number[]; status: string; search: string }>({ entity_ids: [], status: "", search: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
-      if (filter.entity_id) params.entity_id = filter.entity_id;
+      if (filter.entity_ids.length) params.entity_ids = filter.entity_ids.join(",");
       if (filter.status) params.status = filter.status;
       if (filter.search) params.search = filter.search;
       const { leases: ls, total: t } = await api.leases.list(params);
@@ -168,11 +169,12 @@ export function LeasesPage() {
       <div className="flex gap-3 flex-wrap">
         <input className="input w-48" placeholder="Search…"
           value={filter.search} onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))} />
-        <select className="input w-44" value={filter.entity_id}
-          onChange={(e) => setFilter((f) => ({ ...f, entity_id: e.target.value }))}>
-          <option value="">All entities</option>
-          {entities.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
-        </select>
+        <EntityMultiSelect
+          entities={entities}
+          value={filter.entity_ids}
+          onChange={(ids) => setFilter((f) => ({ ...f, entity_ids: ids }))}
+          className="w-48"
+        />
         <select className="input w-36" value={filter.status}
           onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value }))}>
           <option value="">All statuses</option>
