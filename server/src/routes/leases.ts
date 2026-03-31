@@ -1,6 +1,5 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
-import pdfParse from "pdf-parse";
 import { getSupabase } from "../db";
 import { extractLeaseData } from "../services/extraction";
 import { buildSchedule } from "@rou-lio/lib";
@@ -79,12 +78,12 @@ router.post("/import-csv", upload.single("csv"), async (req: Request, res: Respo
 });
 
 // POST /api/leases/extract
-router.post("/extract", upload.single("pdf"), async (req: Request, res: Response) => {
+router.post("/extract", async (req: Request, res: Response) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No PDF uploaded" });
-    const pdfData = await pdfParse(req.file.buffer);
-    const extracted = await extractLeaseData(pdfData.text);
-    res.json({ extracted, filename: req.file.originalname });
+    const { text, filename } = req.body as { text?: string; filename?: string };
+    if (!text) return res.status(400).json({ error: "No text provided" });
+    const extracted = await extractLeaseData(text);
+    res.json({ extracted, filename: filename ?? "document.pdf" });
   } catch (err: unknown) {
     res.status(500).json({ error: (err as Error).message });
   }

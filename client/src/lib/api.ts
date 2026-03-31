@@ -36,16 +36,25 @@ export const api = {
     create: (d: Partial<Lease>) => request<{ id: number }>("/leases", { method: "POST", body: JSON.stringify(d) }),
     update: (id: number, d: Partial<Lease>) => request("/leases/" + id, { method: "PUT", body: JSON.stringify(d) }),
     delete: (id: number) => request("/leases/" + id, { method: "DELETE" }),
-    extract: (file: File) => {
-      const token = getAuthToken();
-      const form = new FormData();
-      form.append("pdf", file);
-      return fetch(BASE + "/leases/extract", {
-        method: "POST", body: form,
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }).then(async (r) => {
-        if (!r.ok) throw new Error((await r.json()).error);
-        return r.json() as Promise<{ extracted: ExtractedLease; filename: string }>;
+    extract: async (file: File) => {
+      // Extract text client-side to avoid Vercel's 4.5MB serverless body limit
+      const pdfjsLib = await import("pdfjs-dist");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        "pdfjs-dist/build/pdf.worker.mjs",
+        import.meta.url
+      ).toString();
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const textParts: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        textParts.push(content.items.map((item) => ("str" in item ? item.str : "")).join(" "));
+      }
+      const text = textParts.join("\n").slice(0, 15000);
+      return request<{ extracted: ExtractedLease; filename: string }>("/leases/extract", {
+        method: "POST",
+        body: JSON.stringify({ text, filename: file.name }),
       });
     },
     importCsv: (file: File) => {
