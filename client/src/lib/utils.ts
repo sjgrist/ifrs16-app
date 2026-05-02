@@ -52,14 +52,32 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 
 /** Convert journal rows to CSV */
-export function journalsToCSV(rows: {
-  date: string; accountCode: string; accountDescription: string;
-  debit: number; credit: number; leaseRef: string; assetClass: string;
-}[]): string {
-  const header = "Date,Account Code,Account Description,Debit,Credit,Lease Ref,Asset Class";
+export function journalsToCSV(
+  rows: {
+    date: string; entityName: string; currency: string;
+    accountCode: string; accountDescription: string;
+    debit: number; credit: number;
+    debitRpt: number | null; creditRpt: number | null;
+    leaseRef: string; assetClass: string;
+  }[],
+  reportingCurrency: string
+): string {
+  const rpt = reportingCurrency;
+  const header = `Date,Entity,Currency,Account Code,Account Description,Debit,Credit,Rpt Debit (${rpt}),Rpt Credit (${rpt}),Lease Ref,Asset Class`;
   const lines = rows.map((r) =>
-    [r.date, r.accountCode, `"${r.accountDescription}"`,
-     r.debit.toFixed(2), r.credit.toFixed(2), r.leaseRef, r.assetClass].join(",")
+    [
+      r.date,
+      `"${r.entityName}"`,
+      r.currency,
+      r.accountCode,
+      `"${r.accountDescription}"`,
+      r.debit.toFixed(2),
+      r.credit.toFixed(2),
+      r.debitRpt != null ? r.debitRpt.toFixed(2) : "",
+      r.creditRpt != null ? r.creditRpt.toFixed(2) : "",
+      r.leaseRef,
+      r.assetClass,
+    ].join(",")
   );
   return [header, ...lines].join("\n");
 }

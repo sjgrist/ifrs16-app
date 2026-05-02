@@ -163,9 +163,12 @@ export interface JournalLine {
   date: string; accountCode: string; accountDescription: string;
   debit: number; credit: number; leaseRef: string; assetClass: string;
   leaseId: number; type: string;
+  entityId: number; entityName: string; currency: string;
+  debitRpt: number | null; creditRpt: number | null;
 }
 export interface JournalResponse {
-  journals: JournalLine[]; periodStart: string; periodEnd: string; entityId: string;
+  journals: JournalLine[]; periodStart: string; periodEnd: string;
+  reportingCurrency: string;
 }
 export interface DiscountRate {
   id: number; label: string; currency: string; tenor_months: number;
