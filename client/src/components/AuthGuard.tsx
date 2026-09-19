@@ -31,7 +31,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
-            <span className="text-white text-sm font-bold">16</span>
+            <svg width="20" height="22" viewBox="0 0 40 44" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="2"  width="36" height="8" rx="1.5" fill="white"/>
+              <rect x="2" y="13" width="27" height="8" rx="1.5" fill="white"/>
+              <rect x="2" y="24" width="18" height="8" rx="1.5" fill="white"/>
+              <rect x="2" y="35" width="9"  height="8" rx="1.5" fill="white"/>
+            </svg>
           </div>
           <div className="text-sm text-[var(--text-muted)]">Loading…</div>
         </div>

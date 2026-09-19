@@ -89,7 +89,12 @@ export function CreateOrgPage() {
         {/* Logo + headline */}
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center ring-1 ring-white/30 shadow-lg">
-            <span className="text-white font-bold text-sm tracking-tight">Rℴ</span>
+            <svg width="28" height="31" viewBox="0 0 40 44" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="2"  width="36" height="8" rx="1.5" fill="#e55c2e"/>
+              <rect x="2" y="13" width="27" height="8" rx="1.5" fill="#e55c2e"/>
+              <rect x="2" y="24" width="18" height="8" rx="1.5" fill="#e55c2e"/>
+              <rect x="2" y="35" width="9"  height="8" rx="1.5" fill="#e55c2e"/>
+            </svg>
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white tracking-tight leading-tight">
