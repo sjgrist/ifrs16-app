@@ -17,13 +17,37 @@ router.get("/me", async (req: Request, res: Response) => {
   const { data: { user }, error } = await sb.auth.getUser(token);
   if (error || !user) return res.status(401).json({ error: "Invalid token" });
 
-  const { data: member } = await sb
+  let { data: member } = await sb
     .from("org_members")
     .select("org_id, role, organisations(name)")
     .eq("user_id", user.id)
     .order("created_at")
     .limit(1)
     .single();
+
+  // Auto-join: if no org yet, check whether user's email domain matches an org
+  if (!member && user.email) {
+    const domain = user.email.split("@")[1]?.toLowerCase();
+    if (domain) {
+      const { data: orgByDomain } = await sb
+        .from("organisations")
+        .select("id, name")
+        .ilike("email_domain", domain)
+        .single();
+      if (orgByDomain) {
+        await sb.from("org_members").upsert(
+          { org_id: (orgByDomain as { id: string }).id, user_id: user.id, role: "member" },
+          { onConflict: "org_id,user_id", ignoreDuplicates: true }
+        );
+        const { data: newMember } = await sb
+          .from("org_members")
+          .select("org_id, role, organisations(name)")
+          .eq("user_id", user.id)
+          .single();
+        member = newMember;
+      }
+    }
+  }
 
   const org = member
     ? {
@@ -47,7 +71,7 @@ router.get("/me", async (req: Request, res: Response) => {
 // POST /api/auth/org — create a new organisation (caller becomes admin)
 router.post("/org", requireAuth as unknown as (req: Request, res: Response, next: unknown) => void, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
-  const { name } = req.body;
+  const { name, email_domain } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: "Organisation name is required" });
 
   const sb = getSupabase();
@@ -57,8 +81,22 @@ router.post("/org", requireAuth as unknown as (req: Request, res: Response, next
     .from("org_members").select("id").eq("user_id", authReq.userId).limit(1).single();
   if (existing) return res.status(409).json({ error: "You are already a member of an organisation" });
 
+  // Validate domain claim if provided
+  let claimedDomain: string | null = null;
+  if (email_domain) {
+    const userDomain = authReq.userEmail.split("@")[1]?.toLowerCase();
+    const requestedDomain = email_domain.trim().toLowerCase();
+    if (requestedDomain !== userDomain) {
+      return res.status(400).json({ error: "Domain must match your email address" });
+    }
+    const { data: taken } = await sb
+      .from("organisations").select("id").ilike("email_domain", requestedDomain).single();
+    if (taken) return res.status(409).json({ error: "This domain is already claimed by another organisation" });
+    claimedDomain = requestedDomain;
+  }
+
   const { data: org, error: orgErr } = await sb
-    .from("organisations").insert({ name: name.trim() }).select().single();
+    .from("organisations").insert({ name: name.trim(), email_domain: claimedDomain }).select().single();
   if (orgErr) return res.status(500).json({ error: orgErr.message });
 
   const { error: memberErr } = await sb.from("org_members").insert({

@@ -2,15 +2,40 @@ import { useState } from "react";
 import { useAuthStore } from "../lib/authStore";
 import { useToast } from "../components/ui/Toast";
 
-export function LoginPage() {
-  const { signInWithGoogle, signInWithMicrosoft, signInDemo } = useAuthStore();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState<string | null>(null);
+type Mode = "signin" | "signup";
 
-  const handle = async (label: string, fn: () => Promise<void>) => {
-    setLoading(label);
-    try { await fn(); }
-    catch (e: unknown) { toast((e as Error).message, "error"); setLoading(null); }
+export function LoginPage() {
+  const { signInWithEmail, signUp, signInDemo } = useAuthStore();
+  const { toast } = useToast();
+
+  const [mode, setMode] = useState<Mode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [signedUp, setSignedUp] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        await signUp(email, password, name);
+        setSignedUp(true);
+      } else {
+        await signInWithEmail(email, password);
+      }
+    } catch (err: unknown) {
+      toast((err as Error).message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemo = async () => {
+    setLoading(true);
+    try { await signInDemo(); }
+    catch (err: unknown) { toast((err as Error).message, "error"); setLoading(false); }
   };
 
   return (
@@ -27,67 +52,115 @@ export function LoginPage() {
           </div>
         </div>
 
-        {/* Sign-in buttons */}
-        <div className="card p-6 space-y-3">
-          <button
-            onClick={() => handle("google", signInWithGoogle)}
-            disabled={loading !== null}
-            className="btn-secondary w-full justify-center gap-3"
-          >
-            <GoogleIcon />
-            {loading === "google" ? "Redirecting…" : "Continue with Google"}
-          </button>
-
-          <button
-            onClick={() => handle("microsoft", signInWithMicrosoft)}
-            disabled={loading !== null}
-            className="btn-secondary w-full justify-center gap-3"
-          >
-            <MicrosoftIcon />
-            {loading === "microsoft" ? "Redirecting…" : "Continue with Microsoft"}
-          </button>
-
-          <div className="relative flex items-center gap-3">
-            <div className="flex-1 border-t border-[var(--border)]" />
-            <span className="text-xs text-[var(--text-muted)]">or</span>
-            <div className="flex-1 border-t border-[var(--border)]" />
+        {signedUp ? (
+          <div className="card p-6 text-center space-y-3">
+            <div className="text-3xl">📬</div>
+            <p className="font-medium">Check your email</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              We've sent a confirmation link to <strong>{email}</strong>.
+              Click it to activate your account.
+            </p>
+            <button
+              onClick={() => { setSignedUp(false); setMode("signin"); }}
+              className="btn-ghost text-sm"
+            >
+              Back to sign in
+            </button>
           </div>
+        ) : (
+          <div className="card overflow-hidden">
+            {/* Tabs */}
+            <div className="flex border-b border-[var(--border)]">
+              {(["signin", "signup"] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                    mode === m
+                      ? "text-brand-600 border-b-2 border-brand-500"
+                      : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {m === "signin" ? "Sign in" : "Create account"}
+                </button>
+              ))}
+            </div>
 
-          <button
-            onClick={() => handle("demo", signInDemo)}
-            disabled={loading !== null}
-            className="btn-secondary w-full justify-center text-[var(--text-muted)]"
-          >
-            {loading === "demo" ? "Signing in…" : "Try demo account"}
-          </button>
-        </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {mode === "signup" && (
+                <div>
+                  <label className="label">Your name</label>
+                  <input
+                    className="input"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Jane Smith"
+                    required
+                    autoFocus
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="label">Work email</label>
+                <input
+                  className="input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="jane@yourcompany.com"
+                  required
+                  autoFocus={mode === "signin"}
+                />
+              </div>
+
+              <div>
+                <label className="label">Password</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "signup" ? "At least 8 characters" : ""}
+                  minLength={mode === "signup" ? 8 : undefined}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn-primary w-full justify-center"
+                disabled={loading}
+              >
+                {loading
+                  ? mode === "signup" ? "Creating account…" : "Signing in…"
+                  : mode === "signup" ? "Create account" : "Sign in"}
+              </button>
+            </form>
+
+            <div className="px-6 pb-6 space-y-3">
+              <div className="relative flex items-center gap-3">
+                <div className="flex-1 border-t border-[var(--border)]" />
+                <span className="text-xs text-[var(--text-muted)]">or</span>
+                <div className="flex-1 border-t border-[var(--border)]" />
+              </div>
+
+              <button
+                onClick={handleDemo}
+                disabled={loading}
+                className="btn-secondary w-full justify-center text-[var(--text-muted)]"
+              >
+                {loading ? "Signing in…" : "Try demo account"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="text-center text-xs text-[var(--text-muted)]">
           By signing in you agree to use this tool for legitimate lease accounting purposes.
         </p>
       </div>
     </div>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18">
-      <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
-      <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-      <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-      <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/>
-    </svg>
-  );
-}
-
-function MicrosoftIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18">
-      <rect x="1" y="1" width="7.5" height="7.5" fill="#F25022"/>
-      <rect x="9.5" y="1" width="7.5" height="7.5" fill="#7FBA00"/>
-      <rect x="1" y="9.5" width="7.5" height="7.5" fill="#00A4EF"/>
-      <rect x="9.5" y="9.5" width="7.5" height="7.5" fill="#FFB900"/>
-    </svg>
   );
 }

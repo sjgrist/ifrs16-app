@@ -20,8 +20,8 @@ interface AuthState {
   token: string | null;
   loading: boolean;
   init: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithMicrosoft: () => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
   signInDemo: () => Promise<void>;
   signOut: () => Promise<void>;
   setOrg: (org: AuthOrg) => void;
@@ -56,18 +56,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  signInWithGoogle: async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + "/auth/callback" },
+  signUp: async (email, password, name) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name } },
     });
+    if (error) throw error;
   },
 
-  signInWithMicrosoft: async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "azure",
-      options: { redirectTo: window.location.origin + "/auth/callback" },
-    });
+  signInWithEmail: async (email, password) => {
+    set({ loading: true });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { set({ loading: false }); throw error; }
   },
 
   signInDemo: async () => {

@@ -3,6 +3,19 @@ import { api } from "../lib/api";
 import { useAuthStore } from "../lib/authStore";
 import { useToast } from "../components/ui/Toast";
 
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.co.uk",
+  "yahoo.com", "yahoo.co.uk", "yahoo.fr", "icloud.com", "me.com", "mac.com",
+  "protonmail.com", "proton.me", "live.com", "live.co.uk", "msn.com", "aol.com", "ymail.com",
+]);
+
+function getCorpDomain(email: string | undefined): string | null {
+  if (!email) return null;
+  const domain = email.split("@")[1]?.toLowerCase();
+  if (!domain || PERSONAL_DOMAINS.has(domain)) return null;
+  return domain;
+}
+
 export function CreateOrgPage() {
   const { setOrg, signOut, user } = useAuthStore();
   const { toast } = useToast();
@@ -11,12 +24,16 @@ export function CreateOrgPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const corpDomain = getCorpDomain(user?.email);
+  const [claimDomain, setClaimDomain] = useState(true);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
     setLoading(true);
     try {
-      const { org } = await api.auth.createOrg(name.trim());
+      const domainToSend = corpDomain && claimDomain ? corpDomain : null;
+      const { org } = await api.auth.createOrg(name.trim(), domainToSend);
       setOrg(org);
       toast("Organisation created");
     } catch (err: unknown) {
@@ -87,6 +104,25 @@ export function CreateOrgPage() {
                     autoFocus
                   />
                 </div>
+
+                {corpDomain && (
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={claimDomain}
+                      onChange={(e) => setClaimDomain(e.target.checked)}
+                      className="mt-0.5 accent-brand-500"
+                    />
+                    <span className="text-sm text-[var(--text)]">
+                      Auto-enrol anyone with a{" "}
+                      <strong>@{corpDomain}</strong> email address
+                      <span className="block text-xs text-[var(--text-muted)] mt-0.5">
+                        They'll join as a member automatically when they sign in
+                      </span>
+                    </span>
+                  </label>
+                )}
+
                 <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
                   {loading ? "Creating…" : "Create organisation"}
                 </button>

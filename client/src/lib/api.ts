@@ -104,7 +104,7 @@ export const api = {
       ),
   },
   auth: {
-    createOrg: (name: string) => request<{ org: OrgInfo }>("/auth/org", { method: "POST", body: JSON.stringify({ name }) }),
+    createOrg: (name: string, email_domain?: string | null) => request<{ org: OrgInfo }>("/auth/org", { method: "POST", body: JSON.stringify({ name, email_domain: email_domain ?? null }) }),
     joinOrg: (invite_code: string) => request<{ org: OrgInfo }>("/auth/join", { method: "POST", body: JSON.stringify({ invite_code }) }),
     getMembers: () => request<OrgMember[]>("/auth/members"),
     updateMember: (userId: string, role: string) =>

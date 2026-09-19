@@ -3,6 +3,7 @@ import { getSupabase } from "../db";
 
 export interface AuthRequest extends Request {
   userId: string;
+  userEmail: string;
   orgId: string;
   orgRole: "admin" | "member";
 }
@@ -20,6 +21,7 @@ export async function requireAuth(
   if (error || !user) return res.status(401).json({ error: "Invalid token" });
 
   req.userId = user.id;
+  req.userEmail = user.email ?? "";
 
   const { data: member } = await sb
     .from("org_members")
