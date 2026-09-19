@@ -16,10 +16,12 @@ function getCorpDomain(email: string | undefined): string | null {
   return domain;
 }
 
+type Tab = "create" | "join";
+
 export function CreateOrgPage() {
   const { setOrg, signOut, user } = useAuthStore();
   const { toast } = useToast();
-  const [tab, setTab] = useState<"create" | "join">("create");
+  const [tab, setTab] = useState<Tab>("create");
   const [name, setName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,32 +60,60 @@ export function CreateOrgPage() {
     }
   };
 
+  const firstName = user?.name?.split(" ")[0] ?? "there";
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center">
-            <span className="text-white text-xl font-bold">16</span>
+    <div className="min-h-screen relative flex items-center justify-center overflow-hidden">
+
+      {/* ── Background ───────────────────────────────────────────────────── */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#070e1a] via-[#1a0e2e] to-brand-500" />
+
+      {/* Grid overlay */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.8) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.8) 1px,transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
+
+      {/* Decorative orbs */}
+      <div className="pointer-events-none absolute -top-32 -right-20 w-96 h-96 rounded-full bg-brand-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -left-16 w-80 h-80 rounded-full bg-orange-400/15 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/4 left-1/4 w-48 h-48 rounded-full bg-white/[0.03] border border-white/5" />
+
+      {/* ── Content ──────────────────────────────────────────────────────── */}
+      <div className="relative z-10 w-full max-w-sm px-4 space-y-6">
+
+        {/* Logo + headline */}
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-11 h-11 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center ring-1 ring-white/30 shadow-lg">
+            <span className="text-white font-bold text-sm tracking-tight">Rℴ</span>
           </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold">Welcome, {user?.name?.split(" ")[0] ?? "there"}!</h1>
-            <p className="text-sm text-[var(--text-muted)] mt-1">
-              Create a new organisation or join an existing one
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight leading-tight">
+              Welcome, {firstName}!
+            </h1>
+            <p className="text-sm text-white/60 mt-2">
+              Set up your organisation to get started
             </p>
           </div>
         </div>
 
-        <div className="card overflow-hidden">
+        {/* ── Form card ────────────────────────────────────────────────── */}
+        <div className="bg-white/[0.07] backdrop-blur-md border border-white/15 rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
+
           {/* Tabs */}
-          <div className="flex border-b border-[var(--border)]">
-            {(["create", "join"] as const).map((t) => (
+          <div className="flex border-b border-white/10">
+            {(["create", "join"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                className={`flex-1 py-3.5 text-sm font-medium transition-colors ${
                   tab === t
-                    ? "text-brand-600 border-b-2 border-brand-500"
-                    : "text-[var(--text-muted)] hover:text-[var(--text)]"
+                    ? "text-white border-b-2 border-white/60"
+                    : "text-white/45 hover:text-white/70"
                 }`}
               >
                 {t === "create" ? "Create new" : "Join existing"}
@@ -95,54 +125,70 @@ export function CreateOrgPage() {
             {tab === "create" ? (
               <form onSubmit={handleCreate} className="space-y-4">
                 <div>
-                  <label className="label">Organisation name</label>
+                  <label className="block text-xs font-medium text-white/55 mb-1.5 uppercase tracking-wide">
+                    Organisation name
+                  </label>
                   <input
-                    className="input"
+                    type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Acme Corp"
+                    required
                     autoFocus
+                    className="w-full rounded-lg bg-white/10 border border-white/20 px-3 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-white/25 focus:border-transparent transition-colors"
                   />
                 </div>
 
                 {corpDomain && (
-                  <label className="flex items-start gap-3 cursor-pointer group">
+                  <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={claimDomain}
                       onChange={(e) => setClaimDomain(e.target.checked)}
-                      className="mt-0.5 accent-brand-500"
+                      className="mt-0.5 accent-brand-500 flex-shrink-0"
                     />
-                    <span className="text-sm text-[var(--text)]">
+                    <span className="text-sm text-white/80">
                       Auto-enrol anyone with a{" "}
-                      <strong>@{corpDomain}</strong> email address
-                      <span className="block text-xs text-[var(--text-muted)] mt-0.5">
+                      <strong className="text-white">@{corpDomain}</strong> email address
+                      <span className="block text-xs text-white/45 mt-0.5">
                         They'll join as a member automatically when they sign in
                       </span>
                     </span>
                   </label>
                 )}
 
-                <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
+                <button
+                  type="submit"
+                  disabled={loading || !name.trim()}
+                  className="w-full rounded-lg bg-white text-[#0b1628] px-4 py-2.5 text-sm font-semibold hover:bg-slate-100 active:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow mt-1"
+                >
                   {loading ? "Creating…" : "Create organisation"}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleJoin} className="space-y-4">
                 <div>
-                  <label className="label">Invite code</label>
+                  <label className="block text-xs font-medium text-white/55 mb-1.5 uppercase tracking-wide">
+                    Invite code
+                  </label>
                   <input
-                    className="input font-mono text-sm"
+                    type="text"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
                     placeholder="Paste the invite code here"
+                    required
                     autoFocus
+                    className="w-full rounded-lg bg-white/10 border border-white/20 px-3 py-2.5 text-sm text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-white/25 focus:border-transparent font-mono transition-colors"
                   />
-                  <p className="text-xs text-[var(--text-muted)] mt-1">
-                    Ask your admin for the organisation's invite code from Settings → Organisation.
+                  <p className="text-xs text-white/40 mt-1.5 leading-relaxed">
+                    Ask your admin for the code from Settings → Organisation.
                   </p>
                 </div>
-                <button type="submit" className="btn-primary w-full justify-center" disabled={loading}>
+                <button
+                  type="submit"
+                  disabled={loading || !inviteCode.trim()}
+                  className="w-full rounded-lg bg-white text-[#0b1628] px-4 py-2.5 text-sm font-semibold hover:bg-slate-100 active:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow"
+                >
                   {loading ? "Joining…" : "Join organisation"}
                 </button>
               </form>
@@ -150,11 +196,14 @@ export function CreateOrgPage() {
           </div>
         </div>
 
-        <div className="text-center">
-          <button onClick={signOut} className="text-xs text-[var(--text-muted)] hover:underline">
+        <p className="text-center">
+          <button
+            onClick={signOut}
+            className="text-xs text-white/30 hover:text-white/60 transition-colors"
+          >
             Sign out
           </button>
-        </div>
+        </p>
       </div>
     </div>
   );
