@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { getSupabase } from "../db";
-import { requireAuth, requireAdmin, AuthRequest } from "../middleware/auth";
+import { requireAuth, requireAuthOnly, requireAdmin, AuthRequest } from "../middleware/auth";
 
 const DEMO_ORG_ID = "00000000-0000-0000-0000-000000000001";
 const DEMO_EMAIL = "demo@ifrs16app.com";
@@ -69,7 +69,7 @@ router.get("/me", async (req: Request, res: Response) => {
 });
 
 // POST /api/auth/org — create a new organisation (caller becomes admin)
-router.post("/org", requireAuth as unknown as (req: Request, res: Response, next: unknown) => void, async (req: Request, res: Response) => {
+router.post("/org", requireAuthOnly as unknown as (req: Request, res: Response, next: unknown) => void, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { name, email_domain } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: "Organisation name is required" });
@@ -110,7 +110,7 @@ router.post("/org", requireAuth as unknown as (req: Request, res: Response, next
 });
 
 // POST /api/auth/join — join an existing org via invite code (= org UUID)
-router.post("/join", requireAuth as unknown as (req: Request, res: Response, next: unknown) => void, async (req: Request, res: Response) => {
+router.post("/join", requireAuthOnly as unknown as (req: Request, res: Response, next: unknown) => void, async (req: Request, res: Response) => {
   const authReq = req as AuthRequest;
   const { invite_code } = req.body;
   if (!invite_code) return res.status(400).json({ error: "Invite code is required" });

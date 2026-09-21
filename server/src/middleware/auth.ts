@@ -40,6 +40,25 @@ export async function requireAuth(
   next();
 }
 
+// Like requireAuth but does NOT require an org membership.
+// Use for routes accessible before an org exists (create/join org).
+export async function requireAuthOnly(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return res.status(401).json({ error: "Unauthorised" });
+
+  const sb = getSupabase();
+  const { data: { user }, error } = await sb.auth.getUser(token);
+  if (error || !user) return res.status(401).json({ error: "Invalid token" });
+
+  req.userId = user.id;
+  req.userEmail = user.email ?? "";
+  next();
+}
+
 export function requireAdmin(
   req: AuthRequest,
   res: Response,
