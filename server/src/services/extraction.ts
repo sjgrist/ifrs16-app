@@ -58,8 +58,6 @@ export async function extractLeaseData(pdfText: string): Promise<ExtractedLease>
   const stream = await client.messages.stream({
     model: "claude-opus-4-6",
     max_tokens: 4096,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    thinking: { type: "adaptive" } as any,
     system: EXTRACTION_SYSTEM,
     messages: [{ role: "user", content: EXTRACTION_PROMPT(pdfText) }],
   });

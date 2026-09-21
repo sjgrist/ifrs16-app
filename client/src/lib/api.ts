@@ -1,4 +1,5 @@
 import { getAuthToken } from "./authStore";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 const BASE = "/api";
 
@@ -39,10 +40,7 @@ export const api = {
     extract: async (file: File) => {
       // Extract text client-side to avoid Vercel's 4.5MB serverless body limit
       const pdfjsLib = await import("pdfjs-dist");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        "pdfjs-dist/build/pdf.worker.mjs",
-        import.meta.url
-      ).toString();
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       const textParts: string[] = [];
